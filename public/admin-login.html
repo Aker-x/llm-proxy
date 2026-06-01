@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>管理员登录</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="page-shell narrow auth-shell">
+    <section class="hero-card compact">
+      <div class="eyebrow">管理员入口</div>
+      <h1 class="hero-title">供应商配置、价格调整和用量重置都在这里完成。</h1>
+      <p class="hero-copy">
+        此入口仅供管理员使用，登录后将直接进入控制台，不经过普通用户首页。
+      </p>
+      <div class="badge-row">
+        <span class="badge info">供应商配置</span>
+        <span class="badge warning">默认路由</span>
+        <span class="badge success">用量可视化</span>
+      </div>
+    </section>
+
+    <section class="panel inset">
+      <div class="form-header">
+        <div>
+          <div class="eyebrow">专用登录</div>
+          <h2 class="form-title">管理员登录</h2>
+        </div>
+        <span class="chip">已预填默认用户名</span>
+      </div>
+
+      <form id="loginForm" class="form-grid" data-login-mode="admin">
+        <label>
+          <span>用户名</span>
+          <input id="usernameInput" type="text" value="liuzhenyu" autocomplete="username" />
+        </label>
+        <label>
+          <span>密码</span>
+          <input id="passwordInput" type="password" autocomplete="current-password" placeholder="请输入管理员密码" />
+        </label>
+        <div class="actions full-width space-between">
+          <a class="link-button secondary" href="/">返回统一登录</a>
+          <button type="submit">进入管理后台</button>
+        </div>
+      </form>
+
+      <div id="loginMessage" class="feedback"></div>
+    </section>
+  </div>
+
+  <script type="module" src="/assets/admin/login.js"></script>
+</body>
+</html>

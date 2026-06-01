@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>管理后台</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="page-shell admin-shell">
+    <aside class="admin-sidebar panel" aria-label="管理导航">
+      <div class="admin-sidebar-header">
+        <div class="admin-sidebar-brand">
+          <span class="admin-sidebar-mark" aria-hidden="true">LP</span>
+          <div class="admin-sidebar-brand-copy">
+            <h1>管理后台</h1>
+            <p id="adminIdentity" class="muted"></p>
+          </div>
+        </div>
+      </div>
+
+      <nav class="admin-sidebar-nav">
+        <a class="admin-float-link" href="#admin-payment-settings" data-admin-nav-link="admin-payment-settings">支付设置</a>
+        <a class="admin-float-link" href="#admin-users" data-admin-nav-link="admin-users">账号</a>
+        <a class="admin-float-link" href="#admin-recharge-requests" data-admin-nav-link="admin-recharge-requests">充值申请</a>
+        <a class="admin-float-link" href="#admin-user-stats" data-admin-nav-link="admin-user-stats">账号用量</a>
+        <a class="admin-float-link" href="#admin-recent-requests" data-admin-nav-link="admin-recent-requests">最近请求</a>
+        <a class="admin-float-link" href="#admin-providers" data-admin-nav-link="admin-providers">供应商</a>
+        <a class="admin-float-link" href="#admin-models" data-admin-nav-link="admin-models">模型</a>
+        <a class="admin-float-link" href="#admin-external-models" data-admin-nav-link="admin-external-models">对外模型</a>
+        <a class="admin-float-link" href="#admin-subscription" data-admin-nav-link="admin-subscription">订阅</a>
+        <a class="admin-float-link" href="#admin-auth" data-admin-nav-link="admin-auth">Auth 管理</a>
+        <a class="admin-float-link" href="#admin-remote-sync" data-admin-nav-link="admin-remote-sync">远端同步</a>
+      </nav>
+
+      <div class="admin-sidebar-footer">
+        <button id="logoutButton" type="button" class="ghost-button admin-logout-button">退出登录</button>
+      </div>
+    </aside>
+
+    <main class="admin-layout admin-workspace" data-admin-workspace>
+      <section id="admin-users" class="panel admin-section" data-admin-section hidden>
+        <div class="form-header">
+          <div>
+            <div class="eyebrow">账号管理</div>
+            <h2 id="userFormTitle" class="form-title">创建账号</h2>
+            <p id="userFormHint" class="section-copy">创建用户或管理员账号，或重置现有账号密码。</p>
+          </div>
+        </div>
+
+        <form id="userForm" class="form-grid three-columns">
+          <input id="userEditUsername" type="hidden" />
+          <label>
+            <span>用户名</span>
+            <input id="managedUsername" type="text" placeholder="例如：team-bot" />
+            <span class="field-note">长度 3 到 32 个字符，可使用字母、数字、点、下划线和连字符。</span>
+          </label>
+          <label>
+            <span>角色</span>
+            <select id="managedUserRole">
+              <option value="user">用户</option>
+              <option value="admin">管理员</option>
+            </select>
+            <span class="field-note">管理员可访问控制中心，并通过 `/admin` 登录。</span>
+          </label>
+          <label>
+            <span>密码</span>
+            <input id="managedUserPassword" type="text" placeholder="至少 6 位" />
+            <span class="field-note">当前项目按现有设计以明文方式保存密码。</span>
+          </label>
+          <div class="actions full-width">
+            <button type="submit">保存账号</button>
+            <button id="userCancelEditButton" type="button" class="ghost-button" hidden>取消编辑</button>
+          </div>
+        </form>
+
+        <div class="table-section">
+          <div class="actions space-between table-toolbar account-search-toolbar">
+            <label class="account-search-control" for="managedUserSearch">
+              <span>快速搜索用户</span>
+              <input id="managedUserSearch" type="search" placeholder="输入 1 个字母即可搜索用户名或角色" autocomplete="off" />
+            </label>
+            <div class="account-search-meta">
+              <span id="managedUserSearchSummary" class="section-copy">显示全部账号</span>
+              <button id="managedUserSearchClearButton" type="button" class="ghost-button" hidden>清空搜索</button>
+            </div>
+          </div>
+          <div class="table-shell">
+            <div class="table-scroll">
+              <table class="managed-users-table table-middle">
+                <thead>
+                  <tr>
+                    <th data-sort-col="username">用户名</th>
+                    <th data-sort-col="role">角色</th>
+                    <th data-sort-col="apiKeyCount">API 密钥数</th>
+                    <th data-sort-col="totalRechargedUsd">累计充值</th>
+                    <th data-sort-col="balanceUsd">余额</th>
+                    <th data-sort-col="upstreamRateLimitIntervalSeconds">上游限速</th>
+                    <th class="action-column">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="adminUsersBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="admin-recharge-requests" class="panel admin-section" data-admin-section hidden>
+        <div class="table-section">
+          <div class="section-header tight">
+            <div>
+              <h3>充值申请</h3>
+              <p class="section-copy">用户扫码固定收款码转账后，在这里提交人工审核申请。</p>
+            </div>
+          </div>
+          <div class="table-shell">
+            <div class="table-scroll is-bounded is-bounded-md">
+              <table class="recharge-requests-table table-middle">
+                <thead>
+                  <tr>
+                    <th data-sort-col="createdAt">创建时间</th>
+                    <th data-sort-col="username">用户</th>
+                    <th data-sort-col="status">状态</th>
+                    <th data-sort-col="amountUsd">USD</th>
+                    <th data-sort-col="amountCny">CNY</th>
+                    <th>备注</th>
+                    <th data-sort-col="reviewedBy">审核人</th>
+                    <th class="action-column">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="rechargeRequestsBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="admin-payment-settings" class="panel admin-section" data-admin-section hidden>
+        <div class="form-header">
+          <div>
+            <div class="eyebrow">支付设置</div>
+            <h2 class="form-title">充值设置</h2>
+            <p class="section-copy">保留当前人工转账流程，同时允许管理员在这里调整充值开关、最低充值人民币金额和美元兑人民币汇率。</p>
+          </div>
+          <div class="auth-header-actions">
+            <button id="paymentSettingsRefreshButton" type="button" class="ghost-button">刷新</button>
+            <span id="paymentSettingsUpdatedAt" class="field-note auth-refresh-note">尚未加载</span>
+          </div>
+        </div>
+
+        <form id="paymentSettingsForm" class="form-grid three-columns">
+          <label class="toggle-card">
+            <input id="paymentSettingsEnabled" type="checkbox" checked />
+            <div>
+              <strong>开启余额充值</strong>
+              <div class="field-note">关闭后，用户将不能再提交新的余额充值申请。</div>
+            </div>
+          </label>
+          <label>
+            <span>最低充值金额（CNY）</span>
+            <input id="paymentMinRechargeCny" type="number" min="0.01" step="0.01" value="10" />
+            <span class="field-note">低于该人民币金额的充值申请会被拒绝。</span>
+          </label>
+          <label>
+            <span>汇率（1 USD = ? CNY）</span>
+            <input id="paymentCnyPerUsd" type="number" min="0.01" step="0.01" value="7" />
+            <span class="field-note">用户侧显示的人民币金额和订单金额都会按这个汇率换算。</span>
+          </label>
+          <div class="actions full-width">
+            <button id="paymentSettingsSaveButton" type="submit">保存充值设置</button>
+          </div>
+        </form>
+      </section>
+      <section id="admin-subscription" class="panel admin-section" data-admin-section hidden>
+        <div class="form-header">
+          <div>
+            <div class="eyebrow">订阅</div>
+            <h2 class="form-title">订阅配置与审核</h2>
+            <p class="section-copy">设置月订阅价格、按外部模型配置每日订阅额度，并审核用户的订阅申请。</p>
+          </div>
+        </div>
+
+        <form id="subscriptionSettingsForm" class="form-grid">
+          <label class="toggle-card">
+            <input id="subscriptionEnabled" type="checkbox" checked />
+            <div>
+              <strong>开启订阅入口</strong>
+              <div class="field-note">关闭后，用户端不能再提交新的订阅申请。</div>
+            </div>
+          </label>
+          <label class="toggle-card">
+            <input id="subscriptionQuotaConsumptionEnabled" type="checkbox" checked />
+            <div>
+              <strong>消耗订阅额度</strong>
+              <div class="field-note">关闭后，订阅用户仍可使用订阅模型，但成功请求不会消耗今日次数。</div>
+            </div>
+          </label>
+          <label hidden>
+            <span>月订阅价格（CNY）</span>
+            <input id="subscriptionMonthlyPriceCny" type="number" min="1" step="1" value="500" hidden />
+            <span class="field-note">默认 500 RMB，可按需调整。</span>
+          </label>
+          <div class="actions full-width">
+            <button type="submit">保存订阅配置</button>
+          </div>
+        </form>
+
+        <div class="table-section">
+          <div class="section-header tight">
+            <div>
+              <h3 id="subscriptionPlanFormTitle">创建订阅方案</h3>
+              <p id="subscriptionPlanFormHint" class="section-copy">每个方案可组合多个外部模型的每日请求上限。留空表示该模型不纳入方案，填 0 表示不限量。</p>
+            </div>
+          </div>
+
+          <form id="subscriptionPlanForm" class="form-grid three-columns">
+            <input id="subscriptionPlanEditId" type="hidden" />
+            <label>
+              <span>方案名称</span>
+              <input id="subscriptionPlanName" type="text" maxlength="60" placeholder="例如：标准版 / 高速版" />
+            </label>
+            <label>
+              <span>月费（CNY）</span>
+              <input id="subscriptionPlanMonthlyPriceCny" type="number" min="1" step="1" value="500" />
+            </label>
+            <label>
+              <span>排序</span>
+              <input id="subscriptionPlanSortOrder" type="number" min="0" step="1" value="0" />
+              <span class="field-note">数字越小越靠前展示。</span>
+            </label>
+            <label class="full-width">
+              <span>方案说明</span>
+              <textarea id="subscriptionPlanDescription" maxlength="240" placeholder="补充说明适合的人群、额度策略或注意事项"></textarea>
+            </label>
+            <label class="toggle-card">
+              <input id="subscriptionPlanEnabled" type="checkbox" checked />
+              <div>
+                <strong>方案可售</strong>
+                <div class="field-note">关闭后该方案不会在用户端展示，也无法被新订单选择。</div>
+              </div>
+            </label>
+            <div class="full-width">
+              <div class="table-shell">
+                <div class="table-scroll is-bounded is-bounded-md">
+                  <table class="table-middle">
+                    <thead>
+                      <tr>
+                        <th>外部模型</th>
+                        <th>路由策略 / 源模型数</th>
+                        <th>每日额度</th>
+                      </tr>
+                    </thead>
+                    <tbody id="subscriptionPlanLimitsBody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="actions full-width">
+              <button type="submit">保存订阅方案</button>
+              <button id="subscriptionPlanCancelEditButton" type="button" class="ghost-button" hidden>取消编辑</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="table-section">
+          <div class="section-header tight">
+            <div>
+              <h3>订阅数据</h3>
+              <p class="section-copy">订阅方案、订阅申请和订阅用户用量分开查看，每个 tab 只放一张表。</p>
+            </div>
+          </div>
+          <div class="admin-tabs subscription-tabs" role="tablist" aria-label="订阅数据表">
+            <button id="subscriptionPlansTab" type="button" class="admin-tab subscription-tab is-active" role="tab" aria-selected="true" aria-controls="subscriptionPlansPanel" data-subscription-tab="plans">订阅方案</button>
+            <button id="subscriptionOrdersTab" type="button" class="admin-tab subscription-tab" role="tab" aria-selected="false" aria-controls="subscriptionOrdersPanel" data-subscription-tab="orders">订阅申请</button>
+            <button id="subscriberUsageTab" type="button" class="admin-tab subscription-tab" role="tab" aria-selected="false" aria-controls="subscriberUsagePanel" data-subscription-tab="usage">用户用量</button>
+          </div>
+          <div class="admin-tab-panels subscription-tab-panels">
+            <div id="subscriptionPlansPanel" class="table-shell admin-tab-panel subscription-tab-panel is-active" role="tabpanel" aria-labelledby="subscriptionPlansTab" data-subscription-panel="plans">
+              <p class="section-copy admin-tab-copy">这里展示当前所有订阅方案。编辑可修改价格、说明和额度组合；删除前会检查是否仍有生效中的订阅用户。</p>
+              <div class="table-scroll is-bounded is-bounded-md">
+                <table class="table-middle subscription-plans-table">
+                  <thead>
+                    <tr>
+                      <th>方案</th>
+                      <th>详情</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="subscriptionPlansBody"></tbody>
+                </table>
+              </div>
+            </div>
+            <div id="subscriptionOrdersPanel" class="table-shell admin-tab-panel subscription-tab-panel" role="tabpanel" aria-labelledby="subscriptionOrdersTab" data-subscription-panel="orders" hidden>
+              <p class="section-copy admin-tab-copy">用户转账后会在这里提交订阅申请，确认收款后再为其开通订阅。</p>
+              <div class="table-scroll is-bounded is-bounded-md">
+                <table class="table-middle">
+                  <thead>
+                    <tr>
+                      <th data-sort-col="createdAt">申请时间</th>
+                      <th data-sort-col="username">用户</th>
+                      <th data-sort-col="status">状态</th>
+                      <th data-sort-col="amountCny">金额</th>
+                      <th>备注</th>
+                      <th data-sort-col="approvedExpiresAt">到期时间</th>
+                      <th data-sort-col="reviewedBy">审核人</th>
+                      <th class="action-column">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="subscriptionOrdersBody"></tbody>
+                </table>
+              </div>
+            </div>
+            <div id="subscriberUsagePanel" class="table-shell admin-tab-panel subscription-tab-panel" role="tabpanel" aria-labelledby="subscriberUsageTab" data-subscription-panel="usage" hidden>
+              <p class="section-copy admin-tab-copy">查看每位订阅用户按外部模型统计的今日已用量与剩余额度。</p>
+              <div class="table-scroll is-bounded is-bounded-md">
+                <table class="table-middle">
+                  <thead>
+                    <tr>
+                      <th data-sort-col="username">用户</th>
+                      <th data-sort-col="subscriptionStatus">状态</th>
+                      <th>开始时间</th>
+                      <th data-sort-col="subscriptionExpiresAt">到期时间</th>
+                      <th>今日用量</th>
+                    </tr>
+                  </thead>
+                  <tbody id="subscriberUsageBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="admin-user-stats" class="panel admin-section" data-admin-section hidden>
+        <div class="table-section">
+          <div class="section-header tight">
+            <div>
+              <h3>账号用量统计</h3>
+              <p class="section-copy">按账号展示各模型用量和总用量；重置账号时只会清空用量统计，充值和余额请在账号模块单独管理。</p>
+            </div>
+          </div>
+          <div class="usage-tabs" role="tablist" aria-label="账号用量统计范围">
+            <button id="usageTotalTab" type="button" class="usage-tab is-active" role="tab" aria-selected="true" aria-controls="usageTotalPanel" data-usage-tab="total">累计用量</button>
+            <button id="usageTodayTab" type="button" class="usage-tab" role="tab" aria-selected="false" aria-controls="usageTodayPanel" data-usage-tab="today">今日用量</button>
+          </div>
+          <div class="usage-tab-panels">
+            <div id="usageTotalPanel" class="table-shell usage-tab-panel is-active" role="tabpanel" aria-labelledby="usageTotalTab" data-usage-panel="total">
+              <p class="section-copy usage-tab-copy">统计该账号历史全部请求，各模型用量按费用和请求数排序。</p>
+              <div class="table-scroll">
+                <table class="users-stats-table table-middle">
+                  <thead>
+                    <tr>
+                      <th data-sort-col="username">用户名</th>
+                      <th data-sort-col="role">角色</th>
+                      <th data-sort-col="modelUsageSummary">各模型用量</th>
+                      <th data-sort-col="requests">总请求</th>
+                      <th data-sort-col="successRequests">成功</th>
+                      <th data-sort-col="failedRequests">失败</th>
+                      <th data-sort-col="totalCost">总费用</th>
+                      <th data-sort-col="lastUsedAt">最后使用</th>
+                      <th class="action-column">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="usersStatsBody"></tbody>
+                </table>
+              </div>
+            </div>
+            <div id="usageTodayPanel" class="table-shell usage-tab-panel" role="tabpanel" aria-labelledby="usageTodayTab" data-usage-panel="today" hidden>
+              <p class="section-copy usage-tab-copy">按北京时间当天统计，方便查看今天每个账号和模型的实际消耗。</p>
+              <div class="table-scroll">
+                <table class="users-stats-table table-middle">
+                  <thead>
+                    <tr>
+                      <th data-sort-col="username">用户名</th>
+                      <th data-sort-col="role">角色</th>
+                      <th data-sort-col="modelUsageSummary">各模型用量</th>
+                      <th data-sort-col="requests">总请求</th>
+                      <th data-sort-col="successRequests">成功</th>
+                      <th data-sort-col="failedRequests">失败</th>
+                      <th data-sort-col="totalCost">总费用</th>
+                      <th data-sort-col="lastUsedAt">最后使用</th>
+                    </tr>
+                  </thead>
+                  <tbody id="todayUsersStatsBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="admin-recent-requests" class="panel admin-section" data-admin-section hidden>
+        <div class="table-section">
+          <div class="section-header tight">
+            <div>
+              <h3>最近请求</h3>
+              <p class="section-copy">展示最近 50 条上游调用，包括状态、Token 数和延迟。</p>
+            </div>
+            <div class="actions">
+              <button id="refreshRecentRequestsButton" type="button" class="ghost-button">刷新最近请求</button>
+            </div>
+          </div>
+          <div class="table-shell">
+            <div class="table-scroll is-bounded is-bounded-lg">
+              <table class="recent-requests-table table-middle">
+                <thead>
+                  <tr>
+                    <th data-sort-col="timestamp">时间</th>
+                    <th data-sort-col="username">用户</th>
+                    <th data-sort-col="providerName">供应商</th>
+                    <th data-sort-col="modelName">模型</th>
+                    <th data-sort-col="success">状态</th>
+                    <th data-sort-col="totalCost">费用</th>
+                    <th data-sort-col="latencyMs">延迟</th>
+                  </tr>
+                </thead>
+                <tbody id="adminRecentRequestsBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="admin-providers" class="panel admin-section" data-admin-section hidden>
+        <div class="form-header">
+          <div>
+            <div class="eyebrow">供应商</div>
+            <h2 id="providerFormTitle" class="form-title">创建供应商</h2>
+            <p id="providerFormHint" class="section-copy">填写基础 URL 和 API Key。模型与对外路由在其他菜单独立管理。</p>
+          </div>
+        </div>
+
+        <form id="providerForm" class="form-grid">
+          <input id="providerEditId" type="hidden" />
+          <label>
+            <span>供应商 ID</span>
+            <input id="providerId" type="text" placeholder="例如：openrouter" />
+            <span class="field-note">API 使用的稳定内部标识。</span>
+          </label>
+          <label>
+            <span>API 基础 URL</span>
+            <input id="providerBaseUrl" type="text" placeholder="https://.../v1" />
+          </label>
+          <label>
+            <span>API Key</span>
+            <input id="providerApiKey" type="text" placeholder="请输入供应商 API Key" />
+            <span class="field-note">编辑时如果不想替换已保存的密钥，可留空。</span>
+          </label>
+          <div class="actions full-width">
+            <button type="submit">保存供应商</button>
+            <button id="providerCancelEditButton" type="button" class="ghost-button" hidden>取消编辑</button>
+          </div>
+        </form>
+
+        <div class="table-section">
+          <div class="table-shell">
+            <div class="table-scroll">
+              <table class="providers-table table-middle">
+                <thead>
+                  <tr>
+                    <th data-sort-col="providerId">ID</th>
+                    <th data-sort-col="apiBaseUrl">基础 URL</th>
+                    <th>API Key</th>
+                    <th class="action-column">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="providersBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="admin-models" class="panel admin-section" data-admin-section hidden>
+        <div class="form-header">
+          <div>
+            <div class="eyebrow">模型</div>
+            <h2 id="modelFormTitle" class="form-title">创建模型</h2>
+            <p id="modelFormHint" class="section-copy">在某个供应商下定义模型、上游接口和价格。</p>
+          </div>
+        </div>
+
+        <form id="modelForm" class="form-grid">
+          <input id="modelEditId" type="hidden" />
+          <label>
+            <span>模型 ID / 上游模型</span>
+            <input id="modelId" type="text" placeholder="例如：qwen/qwen3.5-flash-02-23" />
+            <span class="field-note">直接填写上游模型名，系统会按 Provider、上游 API 和上游模型自动生成模型 ID。</span>
+          </label>
+          <label>
+            <span>供应商</span>
+            <select id="modelProviderSelect"></select>
+          </label>
+          <label>
+            <span>上游 API</span>
+            <select id="modelUpstreamApi">
+              <option value="chat_completions">OpenAI Chat Completions 接口</option>
+              <option value="responses">OpenAI Responses 接口</option>
+              <option value="messages">Anthropic Messages 接口</option>
+            </select>
+            <span class="field-note">客户端请求可来自不同协议，代理会将其转换为该上游接口。</span>
+          </label>
+
+          <div class="form-grid three-columns">
+            <label>
+              <span>币种</span>
+              <input id="modelPricingCurrency" type="text" value="USD" />
+            </label>
+            <label>
+              <span>输入 / 1M Token</span>
+              <input id="modelPricingInput" type="number" step="0.000001" min="0" value="0" />
+            </label>
+            <label>
+              <span>输出 / 1M Token</span>
+              <input id="modelPricingOutput" type="number" step="0.000001" min="0" value="0" />
+            </label>
+            <label>
+              <span>缓存读取 / 1M</span>
+              <input id="modelPricingCacheRead" type="number" step="0.000001" min="0" value="0" />
+            </label>
+            <label>
+              <span>缓存写入 / 1M</span>
+              <input id="modelPricingCacheWrite" type="number" step="0.000001" min="0" value="0" />
+            </label>
+            <label>
+              <span>价格倍率</span>
+              <input id="modelPriceMultiplier" type="number" step="0.0001" min="0" value="1" />
+            </label>
+          </div>
+
+          <div class="actions full-width">
+            <button type="submit">保存模型</button>
+            <button id="modelCancelEditButton" type="button" class="ghost-button" hidden>取消编辑</button>
+          </div>
+        </form>
+
+        <div class="table-section">
+          <div class="actions space-between table-toolbar">
+            <div class="section-copy">点击一次即可依次测试全部模型连通性，失败项会直接标红。</div>
+            <button type="button" id="testAllModelsButton">测试全部模型</button>
+          </div>
+          <div class="table-shell">
+            <div class="table-scroll">
+              <table class="models-table table-middle">
+                <thead>
+                  <tr>
+                    <th data-sort-col="model">模型</th>
+                    <th data-sort-col="provider">供应商</th>
+                    <th data-sort-col="upstreamApi">上游 API</th>
+                    <th data-sort-col="inputPrice">输入 / 1M</th>
+                    <th data-sort-col="outputPrice">输出 / 1M</th>
+                    <th data-sort-col="cacheReadPrice">缓存读取 / 1M</th>
+                    <th data-sort-col="cacheWritePrice">缓存写入 / 1M</th>
+                    <th data-sort-col="priceMultiplier">倍率</th>
+                    <th data-sort-col="latency">延迟</th>
+                    <th class="action-column">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="modelsBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="admin-external-models" class="panel admin-section" data-admin-section hidden>
+        <div class="form-header">
+          <div>
+            <div class="eyebrow">对外模型</div>
+            <h2 id="externalModelFormTitle" class="form-title">创建对外模型</h2>
+            <p id="externalModelFormHint" class="section-copy">一个对外模型名可绑定多个真实模型；这个名字会同时用于客户端调用、后台展示和订阅绑定。</p>
+          </div>
+        </div>
+
+        <form id="externalModelForm" class="form-grid">
+          <input id="externalModelEditName" type="hidden" />
+          <label>
+            <span>对外模型名</span>
+            <input id="externalModelName" type="text" placeholder="例如：gpt-5 / qwen-3.5-flash" />
+            <span class="field-note">这是唯一主名字：客户端请求里的 <code>model</code>、前后台展示、订阅绑定、统计和路由都使用它。</span>
+          </label>
+          <label>
+            <span>路由策略</span>
+            <select id="externalModelStrategy">
+              <option value="round_robin">轮询</option>
+              <option value="failover">故障切换</option>
+              <option value="priority">优先级</option>
+            </select>
+            <span class="field-note">轮询会在可用真实模型间轮转，故障切换或优先级会优先使用优先级数字最小的目标。</span>
+          </label>
+          <div class="field full-width">
+            <span>绑定真实 Model</span>
+            <div class="table-shell model-binding-shell">
+              <div class="table-scroll">
+                <table class="model-binding-table table-middle">
+                  <thead>
+                    <tr>
+                      <th class="checkbox-column">
+                        <label class="checkbox-header">
+                          <input id="externalModelModelIdsToggleAll" type="checkbox" />
+                          <span>全选</span>
+                        </label>
+                      </th>
+                      <th>优先级</th>
+                      <th>Provider</th>
+                      <th>Model</th>
+                      <th>上游 API</th>
+                      <th>状态</th>
+                    </tr>
+                  </thead>
+                  <tbody id="externalModelSelectionBody"></tbody>
+                </table>
+              </div>
+            </div>
+            <span class="field-note">可勾选一个或多个真实 Model，并为每个目标选择优先级。数字越小越优先，例如 1 为主用、2 为备用。</span>
+          </div>
+          <div class="actions full-width">
+            <button type="submit">保存对外模型</button>
+            <button id="externalModelCancelEditButton" type="button" class="ghost-button" hidden>取消编辑</button>
+          </div>
+        </form>
+
+        <div class="table-section">
+          <div class="table-shell">
+            <div class="table-scroll">
+              <table class="external-models-table table-middle">
+                <thead>
+                  <tr>
+                    <th data-sort-col="externalModelName">对外模型名</th>
+                    <th data-sort-col="strategy">策略</th>
+                    <th>绑定真实 Model</th>
+                    <th class="action-column">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="externalModelsBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="admin-auth" class="panel admin-section" data-admin-section hidden>
+        <div class="form-header">
+          <div>
+            <div class="eyebrow">Auth 管理</div>
+            <h2 class="form-title">CLI Auth 文件状态</h2>
+            <p class="section-copy">从 ECS 上的 CLIProxyAPI 授权目录扫描 auth 文件，展示对应账号、订阅生命周期、5 小时额度和 7 天额度；也可以添加或删除单个 auth JSON 文件。额度刷新会实时请求官方用量接口，但不会在界面暴露 token。</p>
+          </div>
+          <div class="auth-header-actions">
+            <button id="authRefreshButton" type="button" class="ghost-button">刷新本页数据</button>
+            <span id="authLastUpdatedAt" class="field-note auth-refresh-note">尚未刷新</span>
+          </div>
+        </div>
+
+        <form id="authUploadForm" class="auth-upload-form">
+          <div class="auth-upload-field auth-upload-target">
+            <label for="authTargetSelect">目标授权目录</label>
+            <select id="authTargetSelect"></select>
+          </div>
+          <div class="auth-upload-field auth-file-picker">
+            <label for="authFileInput">Auth JSON 文件</label>
+            <input id="authFileInput" type="file" accept="application/json,.json" />
+          </div>
+          <div class="auth-upload-actions">
+            <button id="authUploadButton" type="submit">添加 auth 文件</button>
+          </div>
+          <div class="field-note auth-upload-note">只会新增文件，不会覆盖已有同名 auth 文件。</div>
+        </form>
+
+        <div class="table-section">
+          <div class="table-shell auth-table-shell">
+            <div class="table-scroll">
+              <table class="table-middle auth-files-table">
+                <thead>
+                  <tr>
+                    <th>Auth 文件</th>
+                    <th>账号</th>
+                    <th>生命周期</th>
+                    <th>5 小时额度</th>
+                    <th>7 天额度</th>
+                    <th class="action-column">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="authFilesBody">
+                  <tr>
+                    <td colspan="6" class="muted">正在加载 auth 文件状态...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="admin-remote-sync" class="panel admin-section" data-admin-section hidden>
+        <div class="form-header">
+          <div>
+            <div class="eyebrow">远端同步</div>
+            <h2 class="form-title">从远端服务器同步</h2>
+            <p class="section-copy">将远端服务器的 provider、model、external_model 数据完整同步到当前服务，当前数据会被完全覆盖。</p>
+          </div>
+        </div>
+
+        <form id="remoteSyncForm" class="form-grid three-columns">
+          <label>
+            <span>远端服务器 IP</span>
+            <input id="remoteHost" type="text" placeholder="例如：47.99.1.2" />
+          </label>
+          <label>
+            <span>远端管理员账号</span>
+            <input id="remoteUsername" type="text" value="liuzhenyu" placeholder="liuzhenyu" />
+          </label>
+          <label>
+            <span>远端管理员密码</span>
+            <input id="remotePassword" type="password" placeholder="远端管理后台密码" />
+          </label>
+          <div class="actions full-width">
+            <button id="remoteSyncButton" type="submit">同步</button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <div id="adminMessage" class="feedback toast"></div>
+  </div>
+
+  <script type="module" src="/assets/admin.js"></script>
+</body>
+</html>
+

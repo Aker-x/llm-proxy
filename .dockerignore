@@ -1,0 +1,15 @@
+node_modules
+.git
+.gitignore
+.env
+.env.*
+.run
+server.out.log
+server.err.log
+start-server-script.out.log
+start-server-script.err.log
+npm-debug.log
+docker-compose*.yml
+README.md
+llm-delegate.tar
+.tmp-llm-delegate.tar*

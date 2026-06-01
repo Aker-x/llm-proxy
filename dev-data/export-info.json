@@ -1,0 +1,8 @@
+﻿{
+    "exportedAt":  "2026-03-23T00:27:49.0537863+08:00",
+    "composeFile":  "docker-compose.dev.yml",
+    "database":  "llm_delegate",
+    "postgresUser":  "postgres",
+    "sqlFile":  "llm_delegate.sql",
+    "note":  "Redis session data is not included. Re-login after import if needed."
+}

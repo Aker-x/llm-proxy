@@ -1,0 +1,127 @@
+x-app-env: &app-env
+  PORT: "${APP_PORT:-3000}"
+  SESSION_TTL_HOURS: "${SESSION_TTL_HOURS:-12}"
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: 5432
+  POSTGRES_DB: "${POSTGRES_DB:-llm_delegate}"
+  POSTGRES_USER: "${POSTGRES_USER:-postgres}"
+  POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-postgres}"
+  POSTGRES_POOL_MAX: "${POSTGRES_POOL_MAX:-20}"
+  POSTGRES_IDLE_TIMEOUT_MS: "${POSTGRES_IDLE_TIMEOUT_MS:-30000}"
+  POSTGRES_CONNECT_TIMEOUT_MS: "${POSTGRES_CONNECT_TIMEOUT_MS:-10000}"
+  POSTGRES_SSL: "${POSTGRES_SSL:-false}"
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  REDIS_DB: "${REDIS_DB:-0}"
+  REDIS_KEY_PREFIX: "${REDIS_KEY_PREFIX:-llm-delegate:}"
+  ROUTE_CONFIG_CACHE_TTL_MS: "${ROUTE_CONFIG_CACHE_TTL_MS:-5000}"
+  CLIPROXY_AUTH_DIRS: "${CLIPROXY_AUTH_DIRS:-/root/.cli-proxy-api-1,/root/.cli-proxy-api-2}"
+  CLIPROXY_AUTH_USAGE_TIMEOUT_MS: "${CLIPROXY_AUTH_USAGE_TIMEOUT_MS:-10000}"
+
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+    max-file: "${DOCKER_LOG_MAX_FILE:-3}"
+
+x-app-common: &app-common
+  image: "${APP_IMAGE:-llm-delegate:latest}"
+  restart: unless-stopped
+  logging: *default-logging
+  environment: *app-env
+  command: ["node", "src/server.js"]
+  expose:
+    - "${APP_PORT:-3000}"
+  volumes:
+    - "${CLIPROXY_AUTH_DIR_1:-/root/.cli-proxy-api-1}:${CLIPROXY_AUTH_DIR_1:-/root/.cli-proxy-api-1}:rw"
+    - "${CLIPROXY_AUTH_DIR_2:-/root/.cli-proxy-api-2}:${CLIPROXY_AUTH_DIR_2:-/root/.cli-proxy-api-2}:rw"
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    migrate:
+      condition: service_completed_successfully
+
+services:
+  nginx:
+    image: "${NGINX_IMAGE:-nginx:1.29-alpine}"
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      - app-1
+      - app-2
+      - app-3
+    environment:
+      ESC: "$"
+      APP_PORT: "${APP_PORT:-3000}"
+      NGINX_LISTEN_PORT: "${NGINX_LISTEN_PORT:-80}"
+      NGINX_SERVER_NAME: "${NGINX_SERVER_NAME:-_}"
+      NGINX_CLIENT_MAX_BODY_SIZE: "${NGINX_CLIENT_MAX_BODY_SIZE:-0}"
+      NGINX_PROXY_READ_TIMEOUT: "${NGINX_PROXY_READ_TIMEOUT:-3600s}"
+      NGINX_PROXY_SEND_TIMEOUT: "${NGINX_PROXY_SEND_TIMEOUT:-3600s}"
+    ports:
+      - "${PORT:-3000}:${NGINX_LISTEN_PORT:-80}"
+    volumes:
+      - ./deploy/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+
+  postgres:
+    image: "${POSTGRES_IMAGE:-postgres:16}"
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-llm_delegate}"
+      POSTGRES_USER: "${POSTGRES_USER:-postgres}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-postgres}"
+    volumes:
+      - llm_delegate_deploy_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-llm_delegate}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: "${REDIS_IMAGE:-redis:7}"
+    restart: unless-stopped
+    logging: *default-logging
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - llm_delegate_deploy_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    image: "${APP_IMAGE:-llm-delegate:latest}"
+    restart: "no"
+    logging: *default-logging
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment: *app-env
+    command: ["node", "scripts/run-migration.js"]
+
+  app-1:
+    <<: *app-common
+    environment:
+      <<: *app-env
+      INSTANCE_ID: app-1
+
+  app-2:
+    <<: *app-common
+    environment:
+      <<: *app-env
+      INSTANCE_ID: app-2
+
+  app-3:
+    <<: *app-common
+    environment:
+      <<: *app-env
+      INSTANCE_ID: app-3
+
+volumes:
+  llm_delegate_deploy_pg_data:
+  llm_delegate_deploy_redis_data:

@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>用户中心</title>
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <div class="page-shell user-shell">
+    <aside class="user-sidebar" aria-label="用户导航">
+      <div class="user-sidebar-header">
+        <div class="user-sidebar-brand">
+          <span class="user-sidebar-mark" aria-hidden="true">LP</span>
+          <div class="user-sidebar-brand-copy">
+            <h1>用户中心</h1>
+            <p id="userIdentity" class="muted"></p>
+          </div>
+        </div>
+      </div>
+
+      <nav class="user-sidebar-nav">
+        <a class="user-nav-link" href="#user-recharge" data-user-nav-link="user-recharge">充值&余额</a>
+        <a class="user-nav-link" href="#user-subscription" data-user-nav-link="user-subscription">订阅</a>
+        <a class="user-nav-link" href="#user-api-keys" data-user-nav-link="user-api-keys">API 密钥</a>
+        <a class="user-nav-link" href="#user-models" data-user-nav-link="user-models">可用模型</a>
+        <a class="user-nav-link" href="#user-recent-requests" data-user-nav-link="user-recent-requests">最近请求</a>
+        <a class="user-nav-link" href="#user-security" data-user-nav-link="user-security">修改密码</a>
+      </nav>
+
+      <div class="user-sidebar-footer">
+        <button id="logoutButton" type="button" class="ghost-button user-logout-button">退出登录</button>
+      </div>
+    </aside>
+
+    <main class="user-workspace" data-user-workspace>
+      <section id="user-recharge" class="user-section" data-user-section hidden>
+        <div class="user-section-head">
+          <h2 class="form-title">充值与余额</h2>
+        </div>
+
+        <div id="userStatsSummary" class="stats-grid user-stats-grid"></div>
+
+        <div id="subscriptionSummary" class="stats-grid user-stats-grid"></div>
+
+        <div class="note-card user-subscription-card">
+          <div class="section-header tight">
+            <div>
+              <h3>月度订阅</h3>
+              <p class="section-copy">订阅覆盖的模型会优先消耗当日订阅额度。你可以按模型决定：额度用完后继续走余额，还是暂停到明天再用。</p>
+            </div>
+          </div>
+          <p id="subscriptionMeta" class="field-note"></p>
+          <div id="subscriptionLimitSummary" class="chip-row"></div>
+          <div id="subscriptionFallbackPreferences" class="subscription-fallback-list"></div>
+        </div>
+
+        <div class="section-header tight">
+          <div>
+            <h3>可选订阅方案</h3>
+            <p class="section-copy">选择一个方案后转账，再提交订阅申请。管理员确认后生效，每个用户同一时间只会有一个生效中的订阅方案。</p>
+          </div>
+        </div>
+
+        <div id="subscriptionPlansList" class="subscription-plan-grid"></div>
+
+        <form id="subscriptionForm" class="form-grid two-columns user-section-form">
+          <label class="full-width">
+            <span>转账备注</span>
+            <input id="subscriptionNoteInput" type="text" maxlength="120" />
+            <span class="field-note">可填写付款时间、付款人昵称等，方便管理员核对后开通订阅。</span>
+          </label>
+          <div class="actions full-width">
+            <button id="createSubscriptionButton" type="submit">提交订阅申请</button>
+          </div>
+        </form>
+
+        <div class="table-shell">
+          <div class="table-scroll">
+            <table class="table-middle">
+              <thead>
+                <tr>
+                  <th data-sort-col="createdAt">申请时间</th>
+                  <th data-sort-col="status">状态</th>
+                  <th data-sort-col="amountCny">金额（CNY）</th>
+                  <th>备注</th>
+                  <th>订阅开始</th>
+                  <th>订阅到期</th>
+                  <th data-sort-col="reviewedBy">审核人</th>
+                </tr>
+              </thead>
+              <tbody id="subscriptionOrdersBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="payment-qr-card user-payment-card">
+          <div class="payment-qr-copy">
+            <h3>支付宝收款码</h3>
+            <p>扫码转账后，在下方提交充值申请，等待管理员审核。</p>
+            <p id="rechargeMeta" class="field-note"></p>
+          </div>
+          <img id="alipayQrImage" class="payment-qr-image" alt="支付宝收款码" />
+        </div>
+
+        <form id="rechargeForm" class="form-grid three-columns user-section-form">
+          <label>
+            <span>充值金额（CNY）</span>
+            <input id="rechargeAmountInput" type="number" min="10" step="0.01" />
+            <span id="rechargeAmountHint" class="field-note"></span>
+          </label>
+          <label class="full-width">
+            <span>转账备注</span>
+            <input id="rechargeNoteInput" type="text" maxlength="120" />
+            <span class="field-note">选填，可填写付款昵称、时间或其他便于核实的信息。</span>
+          </label>
+          <div class="actions full-width">
+            <button id="createRechargeButton" type="submit">提交充值申请</button>
+          </div>
+        </form>
+
+        <div class="table-shell">
+          <div class="table-scroll">
+            <table class="table-middle">
+              <thead>
+                <tr>
+                  <th data-sort-col="createdAt">创建时间</th>
+                  <th data-sort-col="status">状态</th>
+                  <th data-sort-col="amountCny">CNY</th>
+                  <th data-sort-col="amountUsd">USD</th>
+                  <th>备注</th>
+                  <th data-sort-col="paidAt">支付时间</th>
+                  <th data-sort-col="reviewedBy">审核人</th>
+                </tr>
+              </thead>
+              <tbody id="rechargeOrdersBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="user-subscription" class="user-section" data-user-section hidden>
+        <div class="user-section-head">
+          <h2 class="form-title">订阅</h2>
+        </div>
+
+        <div id="subscriptionPaymentCard" class="payment-qr-card user-payment-card">
+          <div class="payment-qr-copy">
+            <h3>订阅收款码</h3>
+            <p>这一路径仅用于订阅开通。请按所选订阅方案金额转账，提交订阅申请后等待管理员确认生效。</p>
+            <p id="subscriptionPaymentMeta" class="field-note"></p>
+          </div>
+          <img id="subscriptionQrImage" class="payment-qr-image" alt="订阅收款码" />
+        </div>
+      </section>
+
+      <section id="user-api-keys" class="user-section" data-user-section hidden>
+        <div class="user-section-head">
+          <h2 class="form-title">API 密钥</h2>
+          <p class="section-copy">为不同客户端创建独立密钥，方便后续区分用途和停用。</p>
+        </div>
+
+        <form id="apiKeyForm" class="form-grid two-columns user-section-form">
+          <label>
+            <span>密钥名称</span>
+            <input id="apiKeyNameInput" type="text" maxlength="60" />
+            <span class="field-note">建议使用能说明用途的名称。</span>
+          </label>
+          <div class="actions full-width">
+            <button id="createApiKeyButton" type="submit">创建 API 密钥</button>
+          </div>
+        </form>
+
+        <div id="newApiKeyPanel" class="secret-panel" hidden>
+          <div>
+            <h3>新密钥</h3>
+            <div class="section-copy">该值只会显示一次，请在离开当前页面前复制保存。</div>
+          </div>
+          <div class="secret-row">
+            <code id="newApiKeyValue"></code>
+            <button id="copyNewApiKeyButton" type="button" class="secondary-button">复制密钥</button>
+          </div>
+        </div>
+
+        <div class="table-shell">
+          <div class="table-scroll">
+            <table class="api-keys-table table-middle">
+              <thead>
+                <tr>
+                  <th data-sort-col="name">名称</th>
+                  <th>API 密钥</th>
+                  <th data-sort-col="createdAt">创建时间</th>
+                  <th data-sort-col="lastUsedAt">最后使用</th>
+                  <th class="action-column">操作</th>
+                </tr>
+              </thead>
+              <tbody id="apiKeysBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="user-models" class="user-section" data-user-section hidden>
+        <div class="user-section-head">
+          <h2 class="form-title">可用模型</h2>
+          <p class="section-copy">使用下方地址和模型名即可接入。</p>
+        </div>
+
+        <div class="note-card endpoint-card user-endpoint-card">
+          <div class="endpoint-label">接口地址</div>
+          <code id="proxyBaseUrlValue" class="endpoint-value"></code>
+        </div>
+
+        <div class="table-shell">
+          <div class="table-scroll">
+            <table class="table-middle">
+              <thead>
+                <tr>
+                  <th data-sort-col="name">模型</th>
+                  <th data-sort-col="currency">币种</th>
+                  <th data-sort-col="inputPrice">输入 / 1M</th>
+                  <th data-sort-col="outputPrice">输出 / 1M</th>
+                  <th data-sort-col="cacheReadPrice">缓存读取 / 1M</th>
+                  <th data-sort-col="cacheWritePrice">缓存写入 / 1M</th>
+                  <th data-sort-col="priceMultiplier">倍率</th>
+                </tr>
+              </thead>
+              <tbody id="availableModelsBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="user-recent-requests" class="user-section" data-user-section hidden>
+        <div class="user-section-head">
+          <h2 class="form-title">最近请求</h2>
+        </div>
+
+        <div class="table-shell">
+          <div class="table-scroll">
+            <table class="table-middle">
+              <thead>
+                <tr>
+                  <th data-sort-col="timestamp">时间</th>
+                  <th data-sort-col="modelName">模型</th>
+                  <th data-sort-col="success">状态</th>
+                  <th data-sort-col="inputTokens">输入 Token</th>
+                  <th data-sort-col="outputTokens">输出 Token</th>
+                  <th data-sort-col="cacheReadTokens">缓存读取</th>
+                  <th data-sort-col="cacheCreationTokens">缓存写入</th>
+                  <th data-sort-col="totalCost">费用</th>
+                  <th data-sort-col="latencyMs">延迟</th>
+                </tr>
+              </thead>
+              <tbody id="userRecentRequestsBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="user-security" class="user-section" data-user-section hidden>
+        <div class="user-section-head">
+          <h2 class="form-title">修改密码</h2>
+          <p class="section-copy">提交后会退出当前登录，需要使用新密码重新进入。</p>
+        </div>
+
+        <form id="passwordForm" class="form-grid three-columns user-section-form">
+          <label>
+            <span>当前密码</span>
+            <input id="currentPasswordInput" type="password" autocomplete="current-password" />
+          </label>
+          <label>
+            <span>新密码</span>
+            <input id="newPasswordInput" type="password" autocomplete="new-password" minlength="6" />
+          </label>
+          <label>
+            <span>确认新密码</span>
+            <input id="confirmNewPasswordInput" type="password" autocomplete="new-password" minlength="6" />
+          </label>
+          <div class="full-width field-note">密码至少 6 位。</div>
+          <div class="actions full-width">
+            <button id="updatePasswordButton" type="submit">修改密码</button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <div id="userMessage" class="feedback toast"></div>
+  </div>
+
+  <script type="module" src="/assets/user.js"></script>
+</body>
+</html>
