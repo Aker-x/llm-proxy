@@ -1,6 +1,6 @@
 const DEFAULT_PORT = Number(process.env.PORT) || 3000;
-const DEFAULT_ADMIN_USERNAME = 'liuzhenyu';
-const DEFAULT_ADMIN_PASSWORD = 'Lzy_08032211';
+const DEFAULT_ADMIN_USERNAME = 'luozhendong';
+const DEFAULT_ADMIN_PASSWORD = 'L19991219zd#';
 const DEFAULT_SESSION_TTL_HOURS = Number(process.env.SESSION_TTL_HOURS) || 12;
 const ADMIN_SESSION_COOKIE_NAME = 'admin_session';
 const USER_SESSION_COOKIE_NAME = 'user_session';

@@ -232,6 +232,137 @@ test('forwardRequest reports upstream exhaustion instead of no available models 
     }
 });
 
+test('forwardRequest retries the next source model after upstream quota exhaustion response', async () => {
+    const originalFetch = global.fetch;
+    const completedReservations = [];
+    const recordedRequestIds = [];
+    let fetchCalls = 0;
+    let resolveCalls = 0;
+
+    const provider = {
+        id: 'provider-1',
+        name: 'Provider 1',
+        apiBaseUrl: 'https://upstream.example/v1',
+        apiKey: 'test-key',
+    };
+
+    const makeContext = (suffix) => ({
+        provider,
+        model: {
+            id: `model-${suffix}`,
+            name: 'gpt-test',
+            externalModelName: 'gpt-test',
+            upstreamModel: `gpt-test-upstream-${suffix}`,
+            upstreamApi: 'chat_completions',
+            pricing: {},
+        },
+        sourceModel: {
+            id: `source-${suffix}`,
+            upstreamModel: `gpt-test-upstream-${suffix}`,
+            upstreamApi: 'chat_completions',
+        },
+        externalModel: {
+            name: 'gpt-test',
+        },
+    });
+
+    global.fetch = async () => {
+        fetchCalls += 1;
+        if (fetchCalls === 1) {
+            return new Response(JSON.stringify({
+                error: {
+                    code: 'usage_limit_reached',
+                    message: 'Model quota exhausted for today.',
+                },
+            }), {
+                status: 402,
+                headers: { 'content-type': 'application/json' },
+            });
+        }
+
+        return new Response(JSON.stringify({
+            id: 'chatcmpl-test',
+            object: 'chat.completion',
+            choices: [{
+                index: 0,
+                message: { role: 'assistant', content: 'ok' },
+                finish_reason: 'stop',
+            }],
+            usage: {
+                prompt_tokens: 1,
+                completion_tokens: 1,
+                total_tokens: 2,
+            },
+        }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+        });
+    };
+
+    try {
+        const service = new ProxyService({
+            statsService: null,
+            paymentConfigService: {
+                async getBillingConfig() {
+                    return { rechargeEnabled: true };
+                },
+            },
+            userLookup: async () => ({ username: 'alice', balance_usd: 10 }),
+            subscriptionService: {
+                async resolveUsageAccess({ requestId }) {
+                    return {
+                        mode: 'subscription',
+                        subscription: { active: true, planId: 'plan-pro' },
+                        quotaReservation: { requestId },
+                        appliedLimit: {
+                            externalModelName: 'gpt-test',
+                            quotaConsumptionEnabled: true,
+                        },
+                    };
+                },
+                async completeUsageReservation({ quotaReservation, success }) {
+                    completedReservations.push({
+                        requestId: quotaReservation.requestId,
+                        success,
+                    });
+                },
+            },
+            requestAccountingService: {
+                async recordUsageOnly({ requestSummary }) {
+                    recordedRequestIds.push(requestSummary.requestId);
+                    return { recorded: true };
+                },
+            },
+            modelResolutionService: {
+                async resolveModelContext(_payload) {
+                    resolveCalls += 1;
+                    return makeContext(resolveCalls);
+                },
+            },
+            catalogAdminService: null,
+            waitForBootstrapReady: async () => undefined,
+        });
+
+        const result = await service.forwardRequest({
+            apiId: 'chat_completions',
+            requestId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+            username: 'alice',
+            body: {
+                model: 'gpt-test',
+                messages: [{ role: 'user', content: 'hello' }],
+            },
+        });
+
+        assert.equal(result.status, 200);
+        assert.equal(fetchCalls, 2);
+        assert.equal(resolveCalls, 2);
+        assert.equal(recordedRequestIds.length, 1);
+        assert.deepEqual(completedReservations.map((item) => item.success), [false, true]);
+    } finally {
+        global.fetch = originalFetch;
+    }
+});
+
 test('forwardRequest waits for a queued upstream rate limit slot before fetch', async () => {
     const originalFetch = global.fetch;
     let fetchCalls = 0;

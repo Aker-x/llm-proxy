@@ -105,8 +105,8 @@ class RemoteSyncService {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    username: username || 'liuzhenyu',
-                    password: password || 'Lzy_08032211',
+                    username: username || 'luozhendong',
+                    password: password || 'L19991219zd#',
                 }),
             });
 

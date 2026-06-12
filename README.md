@@ -138,7 +138,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\import-dev-data.ps1 -ComposeF
 
 绌哄簱棣栨鍒濆鍖栨椂锛岄粯璁ょ瀛愯处鍙锋潵鑷唬鐮侊細
 
-- 绠＄悊鍛橈細`liuzhenyu / Lzy_08032211`
+- 绠＄悊鍛橈細`luozhendong / L19991219zd#`
 - 鐢ㄦ埛锛歚user / 123456`
 
 濡傛灉瀵煎叆浜?[`dev-data/llm_delegate.sql`](./dev-data/llm_delegate.sql)锛屽垯浠ュ鍏ユ暟鎹腑鐨勮处鍙蜂负鍑嗐€?

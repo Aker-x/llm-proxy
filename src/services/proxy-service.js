@@ -53,6 +53,79 @@ function buildExhaustedUpstreamError(externalModelName, lastError) {
     );
 }
 
+function extractUpstreamErrorInfo(parsedResponse, responseText) {
+    const payload = parsedResponse && typeof parsedResponse === 'object' && !Array.isArray(parsedResponse)
+        ? parsedResponse
+        : null;
+    const errorPayload = payload?.error && typeof payload.error === 'object' && !Array.isArray(payload.error)
+        ? payload.error
+        : null;
+    const errorMessage = [
+        typeof payload?.error === 'string' ? payload.error : '',
+        typeof errorPayload?.message === 'string' ? errorPayload.message : '',
+        typeof payload?.message === 'string' ? payload.message : '',
+        typeof payload?.detail === 'string' ? payload.detail : '',
+        typeof errorPayload?.detail === 'string' ? errorPayload.detail : '',
+        String(responseText || '').trim(),
+    ]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+    const errorCode = String(
+        errorPayload?.code
+        || payload?.code
+        || payload?.error_code
+        || errorPayload?.type
+        || ''
+    ).trim();
+
+    return {
+        message: errorMessage,
+        code: errorCode,
+    };
+}
+
+function getRetryableExternalModelFailure({
+    status,
+    parsedResponse,
+    responseText,
+    externalModel = null,
+    sourceModel = null,
+}) {
+    if (!externalModel || !sourceModel?.id) {
+        return null;
+    }
+
+    const errorInfo = extractUpstreamErrorInfo(parsedResponse, responseText);
+    const haystack = `${errorInfo.code} ${errorInfo.message}`.toLowerCase();
+    const matchesAny = (patterns = []) => patterns.some((pattern) => haystack.includes(pattern));
+    const retryableByStatus = Number(status) >= 500 || Number(status) === 402 || Number(status) === 429;
+    const retryableByMessage = matchesAny([
+        'usage_limit_reached',
+        'model_cooldown',
+        'cooling down',
+        'cooldown',
+        'rate limit',
+        'quota',
+        '额度',
+        '用完',
+        'insufficient balance',
+        '余额不足',
+        'configured model not found',
+        'model not found',
+    ]);
+
+    if (!retryableByStatus && !retryableByMessage) {
+        return null;
+    }
+
+    return {
+        status: Number(status) || 0,
+        code: errorInfo.code || '',
+        reason: errorInfo.message || `Upstream returned retryable status ${status}.`,
+    };
+}
+
 function inferModelLimits(model, sourceModel = null) {
     const values = [
         model?.externalModelName,
@@ -897,6 +970,7 @@ class ProxyService {
         provider,
         model,
         sourceModel,
+        externalModel = null,
         latencyMs,
         requestId,
         subscriptionPlanId = null,
@@ -1114,6 +1188,22 @@ class ProxyService {
             };
         }
 
+        const retryableFailure = getRetryableExternalModelFailure({
+            status: proxyResponse.status,
+            parsedResponse,
+            responseText,
+            externalModel,
+            sourceModel,
+        });
+        if (retryableFailure) {
+            return {
+                status: proxyResponse.status,
+                type: 'retry_external_model',
+                retryableFailure,
+                quotaReservation,
+            };
+        }
+
         const costInfo = this.recordFailedStats({
             username,
             provider,
@@ -1313,6 +1403,7 @@ class ProxyService {
                                         provider,
                                         model,
                                         sourceModel,
+                                        externalModel,
                                         latencyMs,
                                         requestId,
                                         subscriptionPlanId: resolvedAccessContext?.subscription?.planId || null,
@@ -1378,6 +1469,7 @@ class ProxyService {
                             provider,
                             model,
                             sourceModel,
+                            externalModel,
                             latencyMs,
                             requestId,
                             subscriptionPlanId: resolvedAccessContext?.subscription?.planId || null,
@@ -1440,6 +1532,28 @@ class ProxyService {
                 const result = await executeResolvedRequest();
 
                 if (result === null) {
+                    continue;
+                }
+
+                if (result?.type === 'retry_external_model') {
+                    await this.completeQuotaReservationIfNeeded({
+                        requestId,
+                        quotaReservation: result.quotaReservation || null,
+                        success: false,
+                    });
+                    attemptedSourceModelIds.push(sourceModel.id);
+                    lastError = Object.assign(
+                        new Error(result.retryableFailure?.reason || 'retryable upstream failure'),
+                        { status: result.retryableFailure?.status || result.status }
+                    );
+                    console.warn(
+                        `[${requestId}] Upstream returned retryable failure, trying next source model `
+                        + `externalModel=${externalModel?.name || model.externalModelName || model.name} `
+                        + `failedSourceModel=${sourceModel.id} provider=${provider.id} `
+                        + `status=${result.retryableFailure?.status || result.status} `
+                        + `code=${result.retryableFailure?.code || 'n/a'} `
+                        + `reason=${result.retryableFailure?.reason || 'n/a'}`
+                    );
                     continue;
                 }
 

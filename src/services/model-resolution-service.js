@@ -187,15 +187,19 @@ class ModelResolutionService {
         });
     }
 
-    getHealthyTargets(snapshot, externalModelName, excludedModelIds = []) {
+    getActiveTargets(snapshot, externalModelName, excludedModelIds = []) {
         const excludedSet = new Set((excludedModelIds || []).filter(Boolean));
         const targets = this.sortTargets(snapshot.targetsByExternalModelName.get(externalModelName) || []);
-        const activeTargets = targets.filter((target) => (
+        return targets.filter((target) => (
             target.enabled !== false
             && snapshot.modelsById.has(target.modelId)
             && snapshot.modelsById.get(target.modelId)?.enabled !== false
             && !excludedSet.has(target.modelId)
         ));
+    }
+
+    getHealthyTargets(snapshot, externalModelName, excludedModelIds = []) {
+        const activeTargets = this.getActiveTargets(snapshot, externalModelName, excludedModelIds);
         const healthyTargets = activeTargets.filter((target) => {
             const model = snapshot.modelsById.get(target.modelId);
             return model && model.connectivityStatus?.status !== 'failed';
@@ -235,7 +239,9 @@ class ModelResolutionService {
     }
 
     async selectTarget(externalModel, snapshot, excludedModelIds = []) {
-        const candidates = this.getHealthyTargets(snapshot, externalModel.name, excludedModelIds);
+        const candidates = externalModel.strategy === 'failover' || externalModel.strategy === 'priority'
+            ? this.getActiveTargets(snapshot, externalModel.name, excludedModelIds)
+            : this.getHealthyTargets(snapshot, externalModel.name, excludedModelIds);
         if (!candidates.length) {
             throw createHttpError(400, `External model "${externalModel.name}" has no available models.`);
         }
