@@ -433,6 +433,7 @@ test('forwardRequest waits for a queued upstream rate limit slot before fetch', 
                 assert.equal(username, 'alice');
                 return {
                     rateLimitEnabled: true,
+                    requestsPerMinute: 2,
                     intervalSeconds: 30,
                     waitMs: 12,
                 };

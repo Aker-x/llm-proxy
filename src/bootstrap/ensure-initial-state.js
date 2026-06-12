@@ -8,11 +8,13 @@ async function ensureInitialState({
     adminRepository,
     userRepository,
     paymentSettingsRepository,
+    rateLimitSettingsRepository,
 }) {
-    const [admins, users, paymentSettings] = await Promise.all([
+    const [admins, users, paymentSettings, rateLimitSettings] = await Promise.all([
         adminRepository.listAll(),
         userRepository.listAll(),
         paymentSettingsRepository.getById('alipay'),
+        rateLimitSettingsRepository ? rateLimitSettingsRepository.getById('default') : Promise.resolve(null),
     ]);
 
     if (!admins.length) {
@@ -37,6 +39,13 @@ async function ensureInitialState({
 
     if (!paymentSettings) {
         await paymentSettingsRepository.upsertAlipay(createDefaultPaymentsConfig().alipay);
+    }
+
+    if (rateLimitSettingsRepository && !rateLimitSettings) {
+        await rateLimitSettingsRepository.upsertDefault({
+            enabled: false,
+            requestsPerMinute: 60,
+        });
     }
 }
 

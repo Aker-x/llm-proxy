@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     total_spent_usd NUMERIC(18, 6) NOT NULL DEFAULT 0,
     last_recharged_at TIMESTAMPTZ,
     upstream_rate_limit_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    upstream_rate_limit_requests_per_minute INTEGER NOT NULL DEFAULT 60,
     upstream_rate_limit_interval_seconds INTEGER NOT NULL DEFAULT 60,
     upstream_rate_limit_last_request_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -26,6 +27,32 @@ BEGIN
         ';
     END IF;
 END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'users'
+          AND column_name = 'upstream_rate_limit_requests_per_minute'
+    ) THEN
+        EXECUTE '
+            ALTER TABLE users
+            ADD COLUMN upstream_rate_limit_requests_per_minute INTEGER NOT NULL DEFAULT 60
+        ';
+    END IF;
+END $$;
+
+UPDATE users
+SET upstream_rate_limit_requests_per_minute = GREATEST(
+    1,
+    CEIL(60.0 / GREATEST(upstream_rate_limit_interval_seconds, 1))
+) 
+WHERE upstream_rate_limit_requests_per_minute IS DISTINCT FROM GREATEST(
+    1,
+    CEIL(60.0 / GREATEST(upstream_rate_limit_interval_seconds, 1))
+);
 
 DO $$
 BEGIN
@@ -122,6 +149,30 @@ BEGIN
         ';
     END IF;
 END $$;
+
+CREATE TABLE IF NOT EXISTS upstream_rate_limit_settings (
+    id TEXT PRIMARY KEY,
+    enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    requests_per_minute INTEGER NOT NULL DEFAULT 60,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'upstream_rate_limit_settings'
+          AND column_name = 'requests_per_minute'
+    ) THEN
+        EXECUTE 'ALTER TABLE upstream_rate_limit_settings ADD COLUMN requests_per_minute INTEGER NOT NULL DEFAULT 60';
+    END IF;
+END $$;
+
+INSERT INTO upstream_rate_limit_settings (id, enabled, requests_per_minute, updated_at)
+VALUES ('default', FALSE, 60, NOW())
+ON CONFLICT (id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS subscription_settings (
     id TEXT PRIMARY KEY,

@@ -15,6 +15,7 @@ export function createAdminDataModule({
     renderProviderTables,
     renderRecentRequests,
     renderRechargeRequests,
+    renderRateLimitSettings,
     renderSubscriberUsage,
     renderTodayUserStats,
     renderSubscriptionOrders,
@@ -110,6 +111,11 @@ export function createAdminDataModule({
     renderRecentRequests(recentRequests);
   }
 
+  async function loadRateLimitSettings() {
+    const data = await requestJson('/api/admin/rate-limit-settings');
+    renderRateLimitSettings(data || {});
+  }
+
   async function ensureAdminSession() {
     const data = await requestJson('/api/admin/me');
     if (adminIdentity) {
@@ -118,13 +124,14 @@ export function createAdminDataModule({
   }
 
   async function refreshAdminData() {
-    await Promise.all([loadProviders(), loadUsers(), loadStats(), loadSubscription()]);
+    await Promise.all([loadProviders(), loadUsers(), loadStats(), loadSubscription(), loadRateLimitSettings()]);
   }
 
   return {
     ensureAdminSession,
     loadProviders,
     loadRecentRequests,
+    loadRateLimitSettings,
     loadSubscription,
     loadStats,
     loadUsers,

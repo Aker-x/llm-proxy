@@ -21,6 +21,7 @@
 
       <nav class="admin-sidebar-nav">
         <a class="admin-float-link" href="#admin-payment-settings" data-admin-nav-link="admin-payment-settings">支付设置</a>
+        <a class="admin-float-link" href="#admin-rate-limit-settings" data-admin-nav-link="admin-rate-limit-settings">请求限速</a>
         <a class="admin-float-link" href="#admin-users" data-admin-nav-link="admin-users">账号</a>
         <a class="admin-float-link" href="#admin-recharge-requests" data-admin-nav-link="admin-recharge-requests">充值申请</a>
         <a class="admin-float-link" href="#admin-user-stats" data-admin-nav-link="admin-user-stats">账号用量</a>
@@ -95,7 +96,7 @@
                     <th data-sort-col="apiKeyCount">API 密钥数</th>
                     <th data-sort-col="totalRechargedUsd">累计充值</th>
                     <th data-sort-col="balanceUsd">余额</th>
-                    <th data-sort-col="upstreamRateLimitIntervalSeconds">上游限速</th>
+                    <th data-sort-col="upstreamRateLimitRequestsPerMinute">上游限速</th>
                     <th class="action-column">操作</th>
                   </tr>
                 </thead>
@@ -168,6 +169,37 @@
           </label>
           <div class="actions full-width">
             <button id="paymentSettingsSaveButton" type="submit">保存充值设置</button>
+          </div>
+        </form>
+      </section>
+      <section id="admin-rate-limit-settings" class="panel admin-section" data-admin-section hidden>
+        <div class="form-header">
+          <div>
+            <div class="eyebrow">璇锋眰闄愰€?</div>
+            <h2 class="form-title">鍏ㄥ眬榛樿闄愰€?</h2>
+            <p class="section-copy">璁剧疆鎵€鏈夌敤鎴峰湪娌℃湁鍗曠嫭閰嶇疆鏃舵瘡鍒嗛挓鍏佽鍙戦€佺殑璇锋眰鏁伴噺銆傚崟鐢ㄦ埛鍚庣画鍙互鍗曠嫭璁剧疆鑷繁鐨勪紭鍏堢骇闄愰€熴€?</p>
+          </div>
+          <div class="auth-header-actions">
+            <button id="rateLimitSettingsRefreshButton" type="button" class="ghost-button">鍒锋柊</button>
+            <span id="rateLimitSettingsUpdatedAt" class="field-note auth-refresh-note">灏氭湭鍔犺浇</span>
+          </div>
+        </div>
+
+        <form id="rateLimitSettingsForm" class="form-grid three-columns">
+          <label class="toggle-card">
+            <input id="rateLimitSettingsEnabled" type="checkbox" />
+            <div>
+              <strong>寮€鍚叏灞€闄愰€?</strong>
+              <div class="field-note">鍏抽棴鍚庯紝娌℃湁鍗曠嫭閰嶇疆鐨勭敤鎴峰皢涓嶅啀鎺ュ彈榛樿闄愰€熴€?</div>
+            </div>
+          </label>
+          <label>
+            <span>姣忓垎閽熸渶澶氳鏁?</span>
+            <input id="rateLimitRequestsPerMinute" type="number" min="1" step="1" value="60" />
+            <span class="field-note">渚嬪 60 琛ㄧず姣忓垎閽?60 娆°€?</span>
+          </label>
+          <div class="actions full-width">
+            <button id="rateLimitSettingsSaveButton" type="submit">淇濆瓨闄愰€熻缃?</button>
           </div>
         </form>
       </section>

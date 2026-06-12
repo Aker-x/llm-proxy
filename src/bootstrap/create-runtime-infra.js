@@ -6,6 +6,7 @@ const { PgBillingRepository } = require('../repositories/pg/billing-repository')
 const { PgExternalModelRepository } = require('../repositories/pg/external-model-repository');
 const { PgModelRepository } = require('../repositories/pg/model-repository');
 const { PgPaymentSettingsRepository } = require('../repositories/pg/payment-settings-repository');
+const { PgUpstreamRateLimitSettingsRepository } = require('../repositories/pg/upstream-rate-limit-settings-repository');
 const { PgProviderRepository } = require('../repositories/pg/provider-repository');
 const { PgRechargeOrderRepository } = require('../repositories/pg/recharge-order-repository');
 const { PgRequestRepository } = require('../repositories/pg/request-repository');
@@ -31,6 +32,7 @@ function createRuntimeInfra({
         userRepository: new PgUserRepository({ pool: pgPool }),
         apiKeyRepository: new PgApiKeyRepository({ pool: pgPool }),
         paymentSettingsRepository: new PgPaymentSettingsRepository({ pool: pgPool }),
+        rateLimitSettingsRepository: new PgUpstreamRateLimitSettingsRepository({ pool: pgPool }),
         providerRepository: new PgProviderRepository({ pool: pgPool }),
         rechargeOrderRepository: new PgRechargeOrderRepository({ pool: pgPool }),
         externalModelRepository: new PgExternalModelRepository({ pool: pgPool }),

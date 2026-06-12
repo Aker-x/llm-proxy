@@ -118,10 +118,10 @@ export function createAccountActions({
 
         if (button.dataset.action === 'rate-limit-user') {
           const currentEnabled = user.upstreamRateLimitEnabled === true;
-          const currentIntervalSeconds = Number(user.upstreamRateLimitIntervalSeconds || 60);
+          const currentRequestsPerMinute = Number(user.upstreamRateLimitRequestsPerMinute || 60);
           const inputValue = window.prompt(
-            `\u8bbe\u7f6e\u201c${user.username}\u201d\u7684\u4e0a\u6e38\u9650\u901f\u95f4\u9694\u79d2\u6570\u3002\u586b 0 \u6216\u7559\u7a7a\u8868\u793a\u5173\u95ed\uff1b\u586b\u6b63\u6574\u6570\u8868\u793a\u6bcf N \u79d2\u653e\u884c 1 \u6761\u4e0a\u6e38\u8bf7\u6c42\uff0c\u540e\u7eed\u8bf7\u6c42\u4f1a\u6392\u961f\u7b49\u5f85\u3002`,
-            currentEnabled ? String(currentIntervalSeconds) : '0'
+            `\u8bbe\u7f6e\u201c${user.username}\u201d\u7684\u4e0a\u6e38\u9650\u901f\u3002\u586b 0 \u6216\u7559\u7a7a\u8868\u793a\u53d6\u6d88\u4e2a\u4eba\u8986\u76d6\uff0c\u56de\u5230\u5168\u5c40\u9ed8\u8ba4\uff1b\u586b\u6b63\u6574\u6570\u8868\u793a\u6bcf\u5206\u949f\u6700\u591a\u53d1\u8d77 N \u6b21\u8bf7\u6c42\uff0c\u8d85\u51fa\u540e\u4f1a\u6392\u961f\u7b49\u5f85\u3002`,
+            currentEnabled ? String(currentRequestsPerMinute) : '0'
           );
           if (inputValue === null) {
             return;
@@ -130,13 +130,13 @@ export function createAccountActions({
           const trimmedValue = String(inputValue || '').trim();
           const numericValue = Number(trimmedValue || 0);
           const enabled = trimmedValue !== '' && numericValue > 0;
-          const intervalSeconds = enabled ? numericValue : currentIntervalSeconds || 60;
+          const requestsPerMinute = enabled ? numericValue : currentRequestsPerMinute || 60;
           if (!Number.isFinite(numericValue) || numericValue < 0) {
-            showMessage('\u9650\u901f\u95f4\u9694\u5fc5\u987b\u662f\u6b63\u6574\u6570\u79d2\uff0c\u6216\u8005\u586b 0 \u5173\u95ed\u9650\u901f\u3002', true);
+            showMessage('\u9650\u901f\u5fc5\u987b\u662f\u975e\u8d1f\u6574\u6570\uff0c\u6216\u8005\u586b 0 \u5173\u95ed\u9650\u901f\u3002', true);
             return;
           }
-          if (!Number.isInteger(intervalSeconds) || intervalSeconds < 1) {
-            showMessage('\u9650\u901f\u95f4\u9694\u5fc5\u987b\u662f\u6b63\u6574\u6570\u79d2\uff0c\u6216\u8005\u586b 0 \u5173\u95ed\u9650\u901f\u3002', true);
+          if (!Number.isInteger(requestsPerMinute) || requestsPerMinute < 1) {
+            showMessage('\u9650\u901f\u5fc5\u987b\u662f\u6bcf\u5206\u949f\u7684\u6b63\u6574\u6570\u3002\u6216\u8005\u586b 0 \u56de\u5230\u5168\u5c40\u9ed8\u8ba4\u3002', true);
             return;
           }
 
@@ -146,13 +146,13 @@ export function createAccountActions({
               method: 'PUT',
               body: JSON.stringify({
                 enabled,
-                intervalSeconds,
+                requestsPerMinute,
               }),
             });
             await refreshUserData();
             showMessage(enabled
-              ? `${user.username} \u5df2\u5f00\u542f\u4e0a\u6e38\u9650\u901f\uff1a\u6bcf ${intervalSeconds} \u79d2\u653e\u884c 1 \u6761\u8bf7\u6c42\uff0c\u5176\u4ed6\u8bf7\u6c42\u4f1a\u6392\u961f\u3002`
-              : `${user.username} \u7684\u4e0a\u6e38\u9650\u901f\u5df2\u5173\u95ed\u3002`);
+              ? `${user.username} \u5df2\u5f00\u542f\u4e0a\u6e38\u9650\u901f\uff1a\u6bcf\u5206\u949f\u6700\u591a ${requestsPerMinute} \u6b21\u8bf7\u6c42\uff0c\u5176\u4ed6\u8bf7\u6c42\u4f1a\u6392\u961f\u3002`
+              : `${user.username} \u7684\u4e2a\u4eba\u8986\u76d6\u5df2\u53d6\u6d88\uff0c\u5df2\u6062\u590d\u5168\u5c40\u9ed8\u8ba4\u3002`);
           } catch (error) {
             showMessage(error.message, true);
           } finally {

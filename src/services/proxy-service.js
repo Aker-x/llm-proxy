@@ -330,7 +330,11 @@ class ProxyService {
             return result;
         }
 
-        const intervalSeconds = Math.max(1, Number(result.intervalSeconds || 1));
+        const numericRequestsPerMinute = Number(result.requestsPerMinute);
+        const requestsPerMinute = Number.isFinite(numericRequestsPerMinute) && numericRequestsPerMinute > 0
+            ? Math.max(1, Math.floor(numericRequestsPerMinute))
+            : Math.max(1, Math.round(60 / Math.max(1, Number(result.intervalSeconds || 1))));
+        const intervalSeconds = Math.max(1, Number(result.intervalSeconds || Math.ceil(60 / requestsPerMinute)));
         const waitMs = Math.max(0, Number(result.waitMs || 0));
         if (waitMs <= 0) {
             return result;
@@ -338,7 +342,7 @@ class ProxyService {
 
         console.info(
             `[${requestId}] User upstream rate limit queued request `
-            + `user=${username} intervalSeconds=${intervalSeconds} waitMs=${Math.ceil(waitMs)}`
+            + `user=${username} requestsPerMinute=${requestsPerMinute} intervalSeconds=${intervalSeconds} waitMs=${Math.ceil(waitMs)}`
         );
         await this.userRateLimitWait(waitMs);
         return result;

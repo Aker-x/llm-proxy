@@ -13,6 +13,7 @@ function createAdminController({
     remoteSyncService,
     authManagementService,
     paymentConfigService,
+    upstreamRateLimitService,
 }) {
     return {
         async getUsers(_req, res) {
@@ -56,9 +57,22 @@ function createAdminController({
                     username: result.account.username,
                     role: result.role,
                     upstreamRateLimitEnabled: result.account.upstream_rate_limit_enabled === true,
+                    upstreamRateLimitRequestsPerMinute: Number(result.account.upstream_rate_limit_requests_per_minute || 60),
                     upstreamRateLimitIntervalSeconds: Number(result.account.upstream_rate_limit_interval_seconds || 60),
                     upstreamRateLimitLastRequestAt: result.account.upstream_rate_limit_last_request_at || null,
                 },
+            });
+        },
+
+        async getRateLimitSettings(_req, res) {
+            res.json(await upstreamRateLimitService.getAdminSettings());
+        },
+
+        async updateRateLimitSettings(req, res) {
+            const result = await upstreamRateLimitService.updateAdminSettings(req.body || {});
+            res.json({
+                ok: true,
+                ...result,
             });
         },
 

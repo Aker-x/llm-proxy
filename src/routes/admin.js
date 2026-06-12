@@ -9,6 +9,8 @@ function createAdminRoutes({ adminController, auth }) {
     router.put('/api/admin/users/:username/rate-limit', auth.requireAdmin, adminController.updateUserRateLimit);
     router.post('/api/admin/users/:username/credit', auth.requireAdmin, adminController.creditUserBalance);
     router.delete('/api/admin/users/:username', auth.requireAdmin, adminController.deleteUser);
+    router.get('/api/admin/rate-limit-settings', auth.requireAdmin, adminController.getRateLimitSettings);
+    router.put('/api/admin/rate-limit-settings', auth.requireAdmin, adminController.updateRateLimitSettings);
     router.post('/api/admin/recharge-orders/:orderId/approve', auth.requireAdmin, adminController.approveRechargeOrder);
     router.post('/api/admin/recharge-orders/:orderId/reject', auth.requireAdmin, adminController.rejectRechargeOrder);
     router.get('/api/admin/payment-settings', auth.requireAdmin, adminController.getPaymentSettings);

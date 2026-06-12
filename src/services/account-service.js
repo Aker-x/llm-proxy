@@ -51,6 +51,54 @@ function normalizeRateLimitIntervalSeconds(value, fallbackValue = 60) {
     return intervalSeconds;
 }
 
+function normalizeRequestsPerMinute(value, fallbackValue = 60) {
+    const numericValue = Number(value ?? fallbackValue);
+    if (!Number.isFinite(numericValue) || numericValue < 1 || !Number.isInteger(numericValue)) {
+        throw createHttpError(400, 'Requests per minute must be a positive integer.');
+    }
+
+    if (numericValue > 100000) {
+        throw createHttpError(400, 'Requests per minute cannot exceed 100000.');
+    }
+
+    return numericValue;
+}
+
+function deriveIntervalSeconds(requestsPerMinute) {
+    const rpm = normalizeRequestsPerMinute(requestsPerMinute, 60);
+    return Math.max(1, Math.ceil(60 / rpm));
+}
+
+function buildRateLimitView(user, globalSettings = null) {
+    const userOverrideEnabled = user.upstream_rate_limit_enabled === true;
+    const userRequestsPerMinute = normalizeRequestsPerMinute(
+        user.upstream_rate_limit_requests_per_minute || user.upstream_rate_limit_interval_seconds || 60,
+        60
+    );
+    const globalEnabled = globalSettings?.enabled === true;
+    const globalRequestsPerMinute = normalizeRequestsPerMinute(globalSettings?.requestsPerMinute || 60, 60);
+    const effectiveEnabled = userOverrideEnabled || globalEnabled;
+    const effectiveRequestsPerMinute = userOverrideEnabled
+        ? userRequestsPerMinute
+        : (globalEnabled ? globalRequestsPerMinute : 0);
+
+    return {
+        upstreamRateLimitEnabled: effectiveEnabled,
+        upstreamRateLimitRequestsPerMinute: effectiveRequestsPerMinute,
+        upstreamRateLimitIntervalSeconds: effectiveEnabled
+            ? deriveIntervalSeconds(effectiveRequestsPerMinute)
+            : 0,
+        upstreamRateLimitLastRequestAt: user.upstream_rate_limit_last_request_at || null,
+        upstreamRateLimitSource: userOverrideEnabled
+            ? 'custom'
+            : (globalEnabled ? 'global' : 'off'),
+        upstreamRateLimitCustomEnabled: userOverrideEnabled,
+        upstreamRateLimitCustomRequestsPerMinute: userRequestsPerMinute,
+        upstreamRateLimitGlobalEnabled: globalEnabled,
+        upstreamRateLimitGlobalRequestsPerMinute: globalRequestsPerMinute,
+    };
+}
+
 function mapUserApiKeyRow(row = {}) {
     return sanitizeUserApiKey({
         id: row.id,
@@ -66,10 +114,12 @@ class AccountService {
         adminRepository,
         userRepository,
         apiKeyRepository,
+        rateLimitSettingsRepository,
     }) {
         this.adminRepository = adminRepository;
         this.userRepository = userRepository;
         this.apiKeyRepository = apiKeyRepository;
+        this.rateLimitSettingsRepository = rateLimitSettingsRepository;
     }
 
     async getAdminByUsername(username) {
@@ -106,10 +156,13 @@ class AccountService {
     }
 
     async listAccounts() {
-        const [admins, users, apiKeys] = await Promise.all([
+        const [admins, users, apiKeys, rateLimitSettings] = await Promise.all([
             this.adminRepository.listAll(),
             this.userRepository.listAll(),
             this.apiKeyRepository.listAll(),
+            this.rateLimitSettingsRepository
+                ? this.rateLimitSettingsRepository.getById('default')
+                : Promise.resolve(null),
         ]);
 
         const apiKeyCountByUsername = new Map();
@@ -119,6 +172,16 @@ class AccountService {
                 (apiKeyCountByUsername.get(apiKey.username) || 0) + 1
             );
         }
+
+        const globalRateLimitSettings = rateLimitSettings
+            ? {
+                enabled: rateLimitSettings.enabled === true,
+                requestsPerMinute: Number(rateLimitSettings.requests_per_minute || 60),
+            }
+            : {
+                enabled: false,
+                requestsPerMinute: 60,
+            };
 
         return [
             ...admins.map((admin) => ({
@@ -140,9 +203,7 @@ class AccountService {
                 subscriptionPlanId: user.subscription_plan_id || null,
                 subscriptionStartedAt: user.subscription_started_at || null,
                 subscriptionExpiresAt: user.subscription_expires_at || null,
-                upstreamRateLimitEnabled: user.upstream_rate_limit_enabled === true,
-                upstreamRateLimitIntervalSeconds: Number(user.upstream_rate_limit_interval_seconds || 60),
-                upstreamRateLimitLastRequestAt: user.upstream_rate_limit_last_request_at || null,
+                ...buildRateLimitView(user, globalRateLimitSettings),
             })),
         ].sort((left, right) => {
             if (left.role !== right.role) {
@@ -198,7 +259,7 @@ class AccountService {
             subscriptionStartedAt: null,
             subscriptionExpiresAt: null,
             upstreamRateLimitEnabled: false,
-            upstreamRateLimitIntervalSeconds: 60,
+            upstreamRateLimitRequestsPerMinute: 60,
             upstreamRateLimitLastRequestAt: null,
         });
         return { role, account };
@@ -241,7 +302,7 @@ class AccountService {
             subscriptionStartedAt: current.account.subscription_started_at || null,
             subscriptionExpiresAt: current.account.subscription_expires_at || null,
             upstreamRateLimitEnabled: current.account.upstream_rate_limit_enabled === true,
-            upstreamRateLimitIntervalSeconds: Number(current.account.upstream_rate_limit_interval_seconds || 60),
+            upstreamRateLimitRequestsPerMinute: Number(current.account.upstream_rate_limit_requests_per_minute || 60),
             upstreamRateLimitLastRequestAt: current.account.upstream_rate_limit_last_request_at || null,
         });
         return { role: 'user', account };
@@ -259,19 +320,28 @@ class AccountService {
 
         const enabled = payload.enabled === true
             || String(payload.enabled || '').trim().toLowerCase() === 'true';
-        const rawIntervalSeconds = !enabled && Number(payload.intervalSeconds || 0) <= 0
-            ? current.account.upstream_rate_limit_interval_seconds || 60
-            : payload.intervalSeconds;
-        const intervalSeconds = normalizeRateLimitIntervalSeconds(
-            rawIntervalSeconds,
-            current.account.upstream_rate_limit_interval_seconds || 60
+        let rawRequestsPerMinute = current.account.upstream_rate_limit_requests_per_minute || 60;
+        if (payload.requestsPerMinute !== undefined) {
+            const numericRequestsPerMinute = Number(payload.requestsPerMinute);
+            if (Number.isFinite(numericRequestsPerMinute) && numericRequestsPerMinute > 0) {
+                rawRequestsPerMinute = numericRequestsPerMinute;
+            }
+        } else if (payload.intervalSeconds !== undefined) {
+            const numericIntervalSeconds = Number(payload.intervalSeconds);
+            if (Number.isFinite(numericIntervalSeconds) && numericIntervalSeconds > 0) {
+                rawRequestsPerMinute = Math.max(1, Math.ceil(60 / normalizeRateLimitIntervalSeconds(numericIntervalSeconds, 60)));
+            }
+        }
+        const requestsPerMinute = normalizeRequestsPerMinute(
+            rawRequestsPerMinute,
+            current.account.upstream_rate_limit_requests_per_minute || 60
         );
 
         const account = await this.userRepository.updateRateLimitSettings(
             current.account.username,
             {
                 enabled,
-                intervalSeconds,
+                requestsPerMinute,
             }
         );
 

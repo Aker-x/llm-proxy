@@ -34,6 +34,7 @@ const { BillingService } = require('./services/billing-service');
 const { CatalogAdminService } = require('./services/catalog-admin-service');
 const { RemoteSyncService } = require('./services/remote-sync-service');
 const { PaymentConfigService } = require('./services/payment-config-service');
+const { UpstreamRateLimitService } = require('./services/upstream-rate-limit-service');
 const { ProxyService } = require('./services/proxy-service');
 const { PgStatsService } = require('./services/pg-stats-service');
 const { SubscriptionService } = require('./services/subscription-service');
@@ -59,6 +60,7 @@ function createApp({ port = DEFAULT_PORT } = {}) {
         adminRepository: runtimeInfra.repositories.adminRepository,
         userRepository: runtimeInfra.repositories.userRepository,
         paymentSettingsRepository: runtimeInfra.repositories.paymentSettingsRepository,
+        rateLimitSettingsRepository: runtimeInfra.repositories.rateLimitSettingsRepository,
     });
 
     const statsService = new PgStatsService({
@@ -67,10 +69,14 @@ function createApp({ port = DEFAULT_PORT } = {}) {
     const paymentConfigService = new PaymentConfigService({
         paymentSettingsRepository: runtimeInfra.repositories.paymentSettingsRepository,
     });
+    const upstreamRateLimitService = new UpstreamRateLimitService({
+        rateLimitSettingsRepository: runtimeInfra.repositories.rateLimitSettingsRepository,
+    });
     const accountService = new AccountService({
         adminRepository: runtimeInfra.repositories.adminRepository,
         userRepository: runtimeInfra.repositories.userRepository,
         apiKeyRepository: runtimeInfra.repositories.apiKeyRepository,
+        rateLimitSettingsRepository: runtimeInfra.repositories.rateLimitSettingsRepository,
     });
     const authManagementService = new AuthManagementService();
     const catalogAdminService = new CatalogAdminService({
@@ -139,6 +145,7 @@ function createApp({ port = DEFAULT_PORT } = {}) {
         remoteSyncService,
         authManagementService,
         paymentConfigService,
+        upstreamRateLimitService,
     });
     const userController = createUserController({
         statsService,

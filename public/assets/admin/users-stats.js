@@ -25,20 +25,23 @@ export function createUsersStatsModule({
       return '<div class="rate-limit-cell"><span class="muted">\u672a\u5f00\u542f</span></div>';
     }
 
-    const intervalSeconds = Number(item.upstreamRateLimitIntervalSeconds || 60);
+    const requestsPerMinute = Number(item.upstreamRateLimitRequestsPerMinute || 60);
     const scheduledAt = item.upstreamRateLimitLastRequestAt
       ? new Date(item.upstreamRateLimitLastRequestAt).getTime()
       : 0;
     const scheduledLabel = Number.isFinite(scheduledAt) && scheduledAt > Date.now()
       ? '\u961f\u5217\u6392\u5230'
       : '\u6700\u8fd1\u653e\u884c';
+    const sourceLabel = item.upstreamRateLimitSource === 'custom'
+      ? '\u4e2a\u4eba\u9650\u901f'
+      : '\u5168\u5c40\u9ed8\u8ba4';
     const lastRequestText = item.upstreamRateLimitLastRequestAt
-      ? `${scheduledLabel}\uff1a${formatDateTime(item.upstreamRateLimitLastRequestAt)}`
-      : '\u6682\u65e0\u4e0a\u6e38\u8bf7\u6c42';
+      ? `${sourceLabel} / ${scheduledLabel}\uff1a${formatDateTime(item.upstreamRateLimitLastRequestAt)}`
+      : `${sourceLabel} / \u6682\u65e0\u4e0a\u6e38\u8bf7\u6c42`;
 
     return `
       <div class="rate-limit-cell">
-        ${getStatusBadge(`1 \u6b21 / ${formatNumber(intervalSeconds)} \u79d2`, 'warning')}
+        ${getStatusBadge(`${formatNumber(requestsPerMinute)} \u6b21 / \u5206\u949f`, 'warning')}
         <span class="rate-limit-note">${escapeHtml(lastRequestText)}</span>
       </div>
     `;
