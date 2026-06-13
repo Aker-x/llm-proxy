@@ -161,7 +161,7 @@ class PgUserRepository {
 
     async reserveUpstreamRateLimitSlot(username) {
         const result = await this.pool.query(`
-            WITH current_user AS (
+            WITH current_user_settings AS (
                 SELECT
                     u.username,
                     u.upstream_rate_limit_enabled AS user_override_enabled,
@@ -176,24 +176,24 @@ class PgUserRepository {
             ),
             effective_settings AS (
                 SELECT
-                    current_user.*,
+                    current_user_settings.*,
                     CASE
-                        WHEN current_user.user_override_enabled THEN TRUE
-                        ELSE current_user.global_enabled
+                        WHEN current_user_settings.user_override_enabled THEN TRUE
+                        ELSE current_user_settings.global_enabled
                     END AS rate_limit_enabled,
                     CASE
-                        WHEN current_user.user_override_enabled THEN current_user.user_requests_per_minute
-                        ELSE current_user.global_requests_per_minute
+                        WHEN current_user_settings.user_override_enabled THEN current_user_settings.user_requests_per_minute
+                        ELSE current_user_settings.global_requests_per_minute
                     END AS requests_per_minute,
                     CASE
-                        WHEN current_user.user_override_enabled THEN current_user.user_requests_per_minute
-                        ELSE current_user.global_requests_per_minute
+                        WHEN current_user_settings.user_override_enabled THEN current_user_settings.user_requests_per_minute
+                        ELSE current_user_settings.global_requests_per_minute
                     END AS effective_requests_per_minute,
                     CASE
-                        WHEN current_user.user_override_enabled THEN current_user.user_requests_per_minute
-                        ELSE current_user.global_requests_per_minute
+                        WHEN current_user_settings.user_override_enabled THEN current_user_settings.user_requests_per_minute
+                        ELSE current_user_settings.global_requests_per_minute
                     END AS effective_rpm
-                FROM current_user
+                FROM current_user_settings
             ),
             updated AS (
                 UPDATE users AS users_to_update

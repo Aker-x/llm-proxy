@@ -234,7 +234,7 @@ export function createUsersStatsModule({
               }) : ''}
               ${item.role === 'user' ? renderTableActionButton({
                 action: 'rate-limit-user',
-                label: `\u8bbe\u7f6e ${item.username} \u7684\u4e0a\u6e38\u9650\u901f`,
+                label: `\u8bbe\u7f6e ${item.username} \u7684\u6bcf\u5206\u949f\u8bf7\u6c42\u6b21\u6570`,
                 icon: 'power',
                 attrs: { username: item.username },
               }) : ''}

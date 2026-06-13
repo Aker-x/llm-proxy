@@ -124,12 +124,6 @@ const paymentCnyPerUsd = document.getElementById('paymentCnyPerUsd');
 const paymentSettingsRefreshButton = document.getElementById('paymentSettingsRefreshButton');
 const paymentSettingsSaveButton = document.getElementById('paymentSettingsSaveButton');
 const paymentSettingsUpdatedAt = document.getElementById('paymentSettingsUpdatedAt');
-const rateLimitSettingsForm = document.getElementById('rateLimitSettingsForm');
-const rateLimitSettingsEnabled = document.getElementById('rateLimitSettingsEnabled');
-const rateLimitRequestsPerMinute = document.getElementById('rateLimitRequestsPerMinute');
-const rateLimitSettingsRefreshButton = document.getElementById('rateLimitSettingsRefreshButton');
-const rateLimitSettingsSaveButton = document.getElementById('rateLimitSettingsSaveButton');
-const rateLimitSettingsUpdatedAt = document.getElementById('rateLimitSettingsUpdatedAt');
 const subscriptionSettingsForm = document.getElementById('subscriptionSettingsForm');
 const subscriptionEnabled = document.getElementById('subscriptionEnabled');
 const subscriptionQuotaConsumptionEnabled = document.getElementById('subscriptionQuotaConsumptionEnabled');
@@ -220,7 +214,6 @@ let currentUsers = [];
 let currentStats = null;
 let currentSubscription = null;
 let currentPaymentSettings = null;
-let currentRateLimitSettings = null;
 let currentAuthFiles = [];
 let currentAuthTargets = [];
 let managedUserSearchQuery = '';
@@ -864,7 +857,6 @@ const adminData = createAdminDataModule({
     renderProviderTables: catalogState.renderProviderTables,
     renderRecentRequests: usersStatsModule.renderRecentRequests,
     renderRechargeRequests: usersStatsModule.renderRechargeRequests,
-    renderRateLimitSettings: () => renderRateLimitSettings(),
     renderSubscriberUsage: (...args) => subscriptionModule.renderSubscriberUsage(...args),
     renderTodayUserStats: usersStatsModule.renderTodayUserStats,
     renderSubscriptionOrders: (...args) => subscriptionModule.renderSubscriptionOrders(...args),
@@ -1129,24 +1121,6 @@ function renderPaymentSettings(settings = {}) {
   }
 }
 
-function renderRateLimitSettings(settings = {}) {
-  if (!rateLimitSettingsForm) {
-    return;
-  }
-
-  currentRateLimitSettings = settings;
-  if (rateLimitSettingsEnabled) {
-    rateLimitSettingsEnabled.checked = settings.enabled === true;
-  }
-  if (rateLimitRequestsPerMinute) {
-    rateLimitRequestsPerMinute.value = Number(settings.requestsPerMinute || 60).toString();
-  }
-  if (rateLimitSettingsUpdatedAt) {
-    rateLimitSettingsUpdatedAt.textContent = settings.updatedAt
-      ? `最近更新：${formatAuthDateTime(settings.updatedAt)}`
-      : '暂无更新';
-  }
-}
 
 async function loadPaymentSettings({ silent = false } = {}) {
   if (!paymentSettingsForm) {
@@ -1172,30 +1146,6 @@ async function loadPaymentSettings({ silent = false } = {}) {
   }
 }
 
-async function loadRateLimitSettings({ silent = false } = {}) {
-  if (!rateLimitSettingsForm) {
-    return;
-  }
-
-  setBusy(rateLimitSettingsRefreshButton, true, '加载中...');
-  try {
-    const data = await requestJson('/api/admin/rate-limit-settings');
-    renderRateLimitSettings(data);
-    if (!silent) {
-      showMessage('请求限速设置已刷新。');
-    }
-  } catch (error) {
-    if (rateLimitSettingsUpdatedAt) {
-      rateLimitSettingsUpdatedAt.textContent = '加载失败';
-    }
-    if (!silent) {
-      showMessage(`加载请求限速设置失败：${error.message || error}`, true);
-    }
-  } finally {
-    setBusy(rateLimitSettingsRefreshButton, false);
-  }
-}
-
 async function savePaymentSettings(event) {
   event.preventDefault();
   if (!paymentSettingsForm) {
@@ -1218,30 +1168,6 @@ async function savePaymentSettings(event) {
     showMessage(error.message || String(error), true);
   } finally {
     setBusy(paymentSettingsSaveButton, false);
-  }
-}
-
-async function saveRateLimitSettings(event) {
-  event.preventDefault();
-  if (!rateLimitSettingsForm) {
-    return;
-  }
-
-  try {
-    setBusy(rateLimitSettingsSaveButton, true, '保存中...');
-    const data = await requestJson('/api/admin/rate-limit-settings', {
-      method: 'PUT',
-      body: JSON.stringify({
-        enabled: Boolean(rateLimitSettingsEnabled?.checked),
-        requestsPerMinute: Number(rateLimitRequestsPerMinute?.value),
-      }),
-    });
-    renderRateLimitSettings(data);
-    showMessage('请求限速设置已保存。');
-  } catch (error) {
-    showMessage(error.message || String(error), true);
-  } finally {
-    setBusy(rateLimitSettingsSaveButton, false);
   }
 }
 
@@ -1559,13 +1485,6 @@ if (paymentSettingsForm) {
   paymentSettingsForm.addEventListener('submit', savePaymentSettings);
 }
 
-if (rateLimitSettingsRefreshButton) {
-  rateLimitSettingsRefreshButton.addEventListener('click', () => loadRateLimitSettings());
-}
-
-if (rateLimitSettingsForm) {
-  rateLimitSettingsForm.addEventListener('submit', saveRateLimitSettings);
-}
 
 if (authRefreshButton) {
   authRefreshButton.addEventListener('click', () => loadAuthFiles());
