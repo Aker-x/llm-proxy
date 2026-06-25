@@ -427,7 +427,7 @@ export function createCatalogUi({
       externalModelPricingCacheWrite.value = '0';
     }
     if (externalModelPriceMultiplier) {
-      externalModelPriceMultiplier.value = '1';
+      externalModelPriceMultiplier.value = '1.5';
     }
 
     const nextSelection = populateExternalModelModelIds({
@@ -490,7 +490,7 @@ export function createCatalogUi({
       externalModelPricingCacheWrite.value = getPerMillionPrice(item.pricing, 'cacheCreationPerMillionTokens', 'cacheCreationPer1kTokens');
     }
     if (externalModelPriceMultiplier) {
-      externalModelPriceMultiplier.value = item.pricing?.priceMultiplier ?? 1;
+      externalModelPriceMultiplier.value = item.displayPricing?.priceMultiplier ?? item.pricing?.priceMultiplier ?? 1.5;
     }
 
     const nextSelection = populateExternalModelModelIds({
@@ -628,6 +628,7 @@ export function createCatalogUi({
 
     externalModelsBody.innerHTML = sortedExternalModels.length
       ? sortedExternalModels.map((item) => {
+        const pricing = item.displayPricing || item.pricing || {};
         const modelLabels = (item.targets || [])
           .map((target) => {
             const details = target.modelDetails || {};
@@ -659,11 +660,11 @@ export function createCatalogUi({
       <tr>
         <td><strong>${escapeHtml(stableName)}</strong></td>
         <td>${getStatusBadge(strategyLabel, item.strategy === 'round_robin' ? 'info' : 'muted')}</td>
-        <td>${formatBasePrice(item.pricing, 'inputPerMillionTokens', 'inputPer1kTokens')}</td>
-        <td>${formatBasePrice(item.pricing, 'outputPerMillionTokens', 'outputPer1kTokens')}</td>
-        <td>${formatBasePrice(item.pricing, 'cachedInputPerMillionTokens', 'cachedInputPer1kTokens')}</td>
-        <td>${formatBasePrice(item.pricing, 'cacheCreationPerMillionTokens', 'cacheCreationPer1kTokens')}</td>
-        <td>${formatMultiplierCell(item.pricing)}</td>
+        <td>${formatBasePrice(pricing, 'inputPerMillionTokens', 'inputPer1kTokens')}</td>
+        <td>${formatBasePrice(pricing, 'outputPerMillionTokens', 'outputPer1kTokens')}</td>
+        <td>${formatBasePrice(pricing, 'cachedInputPerMillionTokens', 'cachedInputPer1kTokens')}</td>
+        <td>${formatBasePrice(pricing, 'cacheCreationPerMillionTokens', 'cacheCreationPer1kTokens')}</td>
+        <td>${formatMultiplierCell(pricing)}</td>
         <td>${modelLabels.length ? modelLabels.map((target) => `<span class="target-priority-chip"><span>\u4f18\u5148\u7ea7 ${target.priorityRank}</span><code class="table-code">${escapeHtml(target.label)}</code></span>`).join(' ') : '-'}</td>
         <td class="action-cell">
           <div class="table-actions">

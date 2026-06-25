@@ -145,7 +145,7 @@ function formatPriceWithMultiplier(pricing, canonicalKey, legacyKey) {
 }
 
 function formatMultiplierCell(pricing) {
-  const mult = Number(pricing?.priceMultiplier ?? 1);
+  const mult = Number(pricing?.priceMultiplier ?? 1.5);
   if (!Number.isFinite(mult) || mult <= 0) {
     return '-';
   }
@@ -153,7 +153,7 @@ function formatMultiplierCell(pricing) {
 }
 
 function formatMultiplierCellDisplay(pricing) {
-  const mult = Number(pricing?.priceMultiplier ?? 1);
+  const mult = Number(pricing?.priceMultiplier ?? 1.5);
   if (!Number.isFinite(mult) || mult <= 0) {
     return '-';
   }
@@ -210,6 +210,8 @@ function getTimeValue(value) {
 }
 
 function getCellValue(item, col) {
+  const displayPricing = item.displayPricing || item.pricing || {};
+
   switch (col) {
     case 'name': return String(item.name || '');
     case 'createdAt': return getTimeValue(item.createdAt);
@@ -229,12 +231,12 @@ function getCellValue(item, col) {
     case 'totalCost': return Number(item.totalCost || 0);
     case 'latencyMs': return Number(item.latencyMs || 0);
     case 'timestamp': return getTimeValue(item.timestamp);
-    case 'currency': return String(item.pricing?.currency || 'USD');
-    case 'inputPrice': return getPerMillionPrice(item.pricing, 'inputPerMillionTokens', 'inputPer1kTokens');
-    case 'outputPrice': return getPerMillionPrice(item.pricing, 'outputPerMillionTokens', 'outputPer1kTokens');
-    case 'cacheReadPrice': return getPerMillionPrice(item.pricing, 'cachedInputPerMillionTokens', 'cachedInputPer1kTokens');
-    case 'cacheWritePrice': return getPerMillionPrice(item.pricing, 'cacheCreationPerMillionTokens', 'cacheCreationPer1kTokens');
-    case 'priceMultiplier': return Number(item.pricing?.priceMultiplier ?? 1);
+    case 'currency': return String(displayPricing.currency || 'USD');
+    case 'inputPrice': return getPerMillionPrice(displayPricing, 'inputPerMillionTokens', 'inputPer1kTokens');
+    case 'outputPrice': return getPerMillionPrice(displayPricing, 'outputPerMillionTokens', 'outputPer1kTokens');
+    case 'cacheReadPrice': return getPerMillionPrice(displayPricing, 'cachedInputPerMillionTokens', 'cachedInputPer1kTokens');
+    case 'cacheWritePrice': return getPerMillionPrice(displayPricing, 'cacheCreationPerMillionTokens', 'cacheCreationPer1kTokens');
+    case 'priceMultiplier': return Number(displayPricing?.priceMultiplier ?? 1.5);
     default: return '';
   }
 }

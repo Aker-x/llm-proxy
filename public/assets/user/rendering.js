@@ -424,7 +424,7 @@ export function createUserRenderingModule({
     const sorted = applyTableSort(models, 'availableModelsBody');
     availableModelsBody.innerHTML = sorted.length
       ? sorted.map((model) => {
-        const pricing = model.pricing || {};
+        const pricing = model.displayPricing || model.pricing || {};
         return `
         <tr>
           <td>

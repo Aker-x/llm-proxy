@@ -200,7 +200,7 @@ function getDefaultPricing(pricing = {}) {
         cacheCreationPer1kTokens: cacheCreationPerMillionTokens,
         imagePerUnit: toNonNegativeNumber(pricing.imagePerUnit),
         requestFlatFee: toNonNegativeNumber(pricing.requestFlatFee),
-        priceMultiplier: toNonNegativeNumber(pricing.priceMultiplier, 1),
+        priceMultiplier: toNonNegativeNumber(pricing.priceMultiplier, 1.5),
     };
 }
 
@@ -558,12 +558,14 @@ function sanitizeAdminExternalModel(externalModel, targets = [], models = [], pr
     const externalModelTargets = targets
         .filter((target) => target.externalModelName === externalModel.name)
         .sort((a, b) => Number(a.priority || 0) - Number(b.priority || 0));
+    const pricing = getDefaultPricing(externalModel.pricing);
 
     return {
         name: externalModel.name,
         externalModelName: externalModel.name,
         strategy: externalModel.strategy || 'round_robin',
-        pricing: getDefaultPricing(externalModel.pricing),
+        pricing,
+        displayPricing: { ...pricing },
         updatedAt: externalModel.updatedAt || null,
         targets: externalModelTargets.map((target) => {
             const model = models.find((item) => item.id === target.modelId) || { id: target.modelId, providerId: '' };

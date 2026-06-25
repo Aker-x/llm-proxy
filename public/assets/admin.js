@@ -249,7 +249,7 @@ function formatBasePrice(pricing, canonicalKey, legacyKey) {
 }
 
 function formatMultiplierCell(pricing) {
-  const mult = Number(pricing?.priceMultiplier ?? 1);
+  const mult = Number(pricing?.priceMultiplier ?? 1.5);
   if (!Number.isFinite(mult) || mult <= 0) {
     return '-';
   }
@@ -581,11 +581,11 @@ function getCellValue(item, col) {
     case 'model': return getModelDisplayName(item);
     case 'provider': return String(item.providerName || item.providerId || '');
     case 'upstreamApi': return String(item.upstreamApi || '');
-    case 'inputPrice': return getPerMillionPrice(item.pricing, 'inputPerMillionTokens', 'inputPer1kTokens');
-    case 'outputPrice': return getPerMillionPrice(item.pricing, 'outputPerMillionTokens', 'outputPer1kTokens');
-    case 'cacheReadPrice': return getPerMillionPrice(item.pricing, 'cachedInputPerMillionTokens', 'cachedInputPer1kTokens');
-    case 'cacheWritePrice': return getPerMillionPrice(item.pricing, 'cacheCreationPerMillionTokens', 'cacheCreationPer1kTokens');
-    case 'priceMultiplier': return Number(item.pricing?.priceMultiplier ?? 1);
+    case 'inputPrice': return getPerMillionPrice(item.displayPricing || item.pricing, 'inputPerMillionTokens', 'inputPer1kTokens');
+    case 'outputPrice': return getPerMillionPrice(item.displayPricing || item.pricing, 'outputPerMillionTokens', 'outputPer1kTokens');
+    case 'cacheReadPrice': return getPerMillionPrice(item.displayPricing || item.pricing, 'cachedInputPerMillionTokens', 'cachedInputPer1kTokens');
+    case 'cacheWritePrice': return getPerMillionPrice(item.displayPricing || item.pricing, 'cacheCreationPerMillionTokens', 'cacheCreationPer1kTokens');
+    case 'priceMultiplier': return Number((item.displayPricing || item.pricing)?.priceMultiplier ?? 1.5);
     case 'latency': return Number(item.connectivityStatus?.latencyMs || 0);
     // external models
     case 'externalModelName': return String(item.externalModelName || item.name || '');

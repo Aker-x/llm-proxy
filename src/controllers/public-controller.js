@@ -9,6 +9,7 @@ function createPublicController({ modelResolutionService, waitForBootstrapReady 
                     name: externalModel.name,
                     strategy: externalModel.strategy,
                     pricing: externalModel.pricing,
+                    displayPricing: externalModel.pricing ? { ...externalModel.pricing } : null,
                 })),
             });
         },
