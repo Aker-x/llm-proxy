@@ -1,92 +1,81 @@
-﻿# llm-delegate
+# llm-delegate
 
-鍗曟満澶氬疄渚嬬殑 LLM 浠ｇ悊鏈嶅姟锛屾彁渚涚粺涓€浠ｇ悊鍏ュ彛銆佺敤鎴?API Key 浣撶郴銆佷綑棰濊璐瑰拰绠＄悊鍚庡彴銆?
+单机多实例的 LLM 代理服务，提供统一代理入口、用户/API Key 体系、余额计费和管理后台。
 
-## 鎶€鏈爤
+## 技术栈
 
 - Node.js + Express
 - PostgreSQL
 - Redis
 - Nginx
 
-## 杩愯鎷撴墤
+## 运行拓扑
 
-- `nginx` 瀵瑰鎻愪緵缁熶竴鍏ュ彛
-- `app-1`銆乣app-2`銆乣app-3` 涓変釜搴旂敤瀹炰緥鍦?Docker 鍐呯綉杩愯
-- `postgres` 鍜?`redis` 浣滀负鍏变韩鍩虹璁炬柦
-- `migrate` 鍦ㄥ簲鐢ㄥ惎鍔ㄥ墠鎵ц鏁版嵁搴撹縼绉?
-- 鎵€鏈夊搷搴旈兘浼氬甫 `X-Proxy-Instance`锛岀敤浜庢爣璇嗗綋鍓嶈姹傜敱鍝釜瀹炰緥澶勭悊
+- `nginx` 对外提供统一入口
+- `app-1`、`app-2`、`app-3` 作为应用实例在 Docker 内网运行
+- `postgres` 和 `redis` 作为共享基础设施
+- `migrate` 在应用启动前执行数据库迁移
+- 所有响应都会带上 `X-Proxy-Instance`，用于识别当前请求由哪个实例处理
 
-## 蹇€熷紑濮?
+## 快速开始
 
-寮€鍙戞満鎺ㄨ崘鐩存帴杩愯锛?
+开发机直接运行：
 
 ```bat
 start-dev.bat
 ```
 
-杩欎釜鑴氭湰浼氾細
+这个脚本会：
 
-- 妫€鏌?Docker 鏄惁鍙敤
-- 鑷姩灏濊瘯鍚姩 Docker Desktop
-- 鍚姩 `postgres` 鍜?`redis`
-- 榛樿瀵煎叆 [`dev-data/llm_delegate.sql`](./dev-data/llm_delegate.sql)
-- 鏋勫缓搴旂敤闀滃儚
-- 鍚姩 `migrate + nginx + app-1/app-2/app-3`
+- 检查 Docker 是否可用
+- 自动尝试启动 Docker Desktop
+- 启动 `postgres` 和 `redis`
+- 默认导入 [`dev-data/llm_delegate.sql`](./dev-data/llm_delegate.sql)
+- 构建应用镜像
+- 启动 `migrate + nginx + app-1/app-2/app-3`
 
-寮€鍙戝叆鍙ｏ細
+开发入口：
 
 - [http://127.0.0.1:3000](http://127.0.0.1:3000)
 
-甯哥敤鍛戒护锛?
+常用命令：
 
 ```powershell
 .\start-dev.bat -SkipImportDevData
 powershell -ExecutionPolicy Bypass -File .\scripts\start-multi-instance.ps1 -Mode dev -SkipImportDevData
 ```
 
-## 閮ㄧ讲姒傝
+## 部署概览
 
-閮ㄧ讲鏈哄父鐢ㄥ叆鍙ｏ細
+常用入口：
 
-- Windows: [start-deploy.bat](./start-deploy.bat)锛堟湰鍦?Docker 閮ㄧ讲锛?
-- Windows SSH: [ssh-ecs.bat](./ssh-ecs.bat)锛堥粯璁よ繛鎺?ECS2锛?
-- Windows remote command: [exec-ecs.bat](./exec-ecs.bat)锛堥粯璁ゅ湪 ECS2 瀹夊叏鎵ц杩滅▼鍛戒护/鑴氭湰锛?
-- Windows ECS 閮ㄧ讲: [deploy-ecs.bat](./deploy-ecs.bat)锛堥粯璁や竴閿瀯寤轰笂浼犻儴缃插埌 ECS2锛?
-- Linux: [scripts/start-multi-instance.sh](./scripts/start-multi-instance.sh)
+- Windows 本地部署：[start-deploy.bat](./start-deploy.bat)
+- Windows SSH 连接：[ssh-ecs.bat](./ssh-ecs.bat)
+- Windows 远程执行：[exec-ecs.bat](./exec-ecs.bat)
+- Windows ECS 部署：[deploy-ecs.bat](./deploy-ecs.bat)
+- Linux：[`scripts/start-multi-instance.sh`](./scripts/start-multi-instance.sh)
 
-榛樿琛屼负锛?
+默认行为：
 
-- 閮ㄧ讲鍏ュ彛榛樿浣跨敤 `http://127.0.0.1`
-- `.env.deploy` 榛樿 `PORT=80`
-- 濡傛灉鍚屾満鏈夊叕缃?IP 涓旀斁閫?`80/tcp`锛屽彲鐩存帴閫氳繃 `http://<your-server-public-ip>/` 璁块棶
-- 濡傛灉閮ㄧ讲鐩綍閲屽瓨鍦?`llm-delegate.tar`锛屽惎鍔ㄨ剼鏈細鑷姩灏濊瘯 `docker load`
+- 部署入口默认使用 `http://127.0.0.1`
+- `.env.deploy` 默认 `PORT=80`
+- 如果同机有公网 IP 且开放了 `80/tcp`，可以直接通过 `http://<your-server-public-ip>/` 访问
+- 如果部署目录里存在 `llm-delegate.tar`，启动脚本会自动尝试 `docker load`
 
-### ECS 閮ㄧ讲鏀寔
+### ECS 部署支持
 
-褰撳墠鏈変袱鍙?ECS锛屼唬鐮佸簱淇濇寔涓€鑷达紝浣嗘暟鎹簱銆丷edis銆丆LIProxy auth/config銆佽繍琛屾暟鎹郊姝ょ嫭绔嬨€傞儴缃蹭唬鐮佸埌鍏朵腑涓€鍙颁笉浼氬悓姝ュ彟涓€鍙扮殑鏁版嵁銆?
+当前代码库保留了两套 ECS 相关脚本和数据路径，代码逻辑保持一致，但数据库、Redis、CLIProxy auth/config、运行数据彼此独立。
 
-| 鐩爣 | 鍏綉 IP | 瀹氫綅 | 鎺ㄨ崘鍏ュ彛 |
-|------|---------|------|----------|
-| `ecs2` | `43.106.12.39` | 褰撳墠涓昏杩愯鐜锛屼繚鐣欏凡鏈変笟鍔℃暟鎹拰 CLIProxy 瀹炰緥 | `deploy-ecs.bat`銆乣ssh-ecs.bat`銆乣exec-ecs.bat`銆乣backup-ecs-data.bat` |
-| `ecs2` | `43.106.12.39` | 绗簩濂楀悓浠ｇ爜鐜锛屾暟鎹嫭绔?| `deploy-ecs2.bat`銆乣ssh-ecs2.bat`銆乣exec-ecs2.bat`銆乣backup-ecs-data-ecs2.bat` |
+部署前请确认目标主机和脚本入口是否一致，避免把一台机器的数据同步到另一台机器。
 
-璇存槑锛?
-
-- `deploy-ecs.bat` / `ssh-ecs.bat` / `exec-ecs.bat` / `backup-ecs-data.bat` 鏄?ECS2 鐨勫吋瀹归粯璁ゅ叆鍙ｃ€?
-- 濡傞渶鏄惧紡鎿嶄綔 ECS2锛屼篃鍙互浣跨敤 `deploy-ecs2.bat` / `ssh-ecs2.bat` / `exec-ecs2.bat` / `backup-ecs-data-ecs2.bat`銆?
-- ECS2 鍜?ECS2 閮介€傚悎闇€瑕佺洿杩?OpenAI/Claude 绛夋捣澶?API 鐨勫満鏅紝榛樿鏃犵炕澧欓渶姹傘€?
-- 澶囦唤銆侀儴缃层€丼SH 鎿嶄綔鍓嶅簲纭鐩爣鏄?`ecs2` 杩樻槸 `ecs2`锛岄伩鍏嶆妸涓€鍙版満鍣ㄧ殑鏁版嵁褰撴垚鍙︿竴鍙般€?
-- ECS2 鍜?ECS2 閮介儴缃蹭簡 `cliproxy-1` / `cliproxy-2`锛屽苟鏀寔鍦?ECS 涓婄洿鎺ユ媺鍙栨渶鏂?`CLIProxyAPI` 婧愮爜骞舵湰鏈烘瀯寤烘浛鎹紝涓嶄緷璧栧浐瀹?Docker Hub tag銆?
-
-鍦ㄥ紑鍙戞満涓婃瀯寤哄苟瀵煎嚭闀滃儚锛?
+### 本地构建并导出镜像
 
 ```powershell
 docker compose --env-file .env.deploy -f docker-compose.deploy.yml build migrate
 docker save -o llm-delegate.tar llm-delegate:latest
 ```
 
-Linux 鏈嶅姟鍣ㄤ篃鍙互鐩存帴鎵ц锛?
+### Linux 服务器上启动
 
 ```bash
 cd /root/llm-delegate
@@ -94,78 +83,77 @@ chmod +x scripts/start-multi-instance.sh
 MODE=deploy ./scripts/start-multi-instance.sh
 ```
 
-## 鏂囨。
+## 文档
 
-- [docs/alibaba-cloud-ecs-deploy.md](./docs/alibaba-cloud-ecs-deploy.md): 闃块噷浜?ECS 閮ㄧ讲姝ラ銆佹帹鑽愯鏍笺€佸畨鍏ㄧ粍鍜岄獙娲诲懡浠?
-- [docs/ecs-targets.md](./docs/ecs-targets.md): ECS2/ECS2 鐩爣銆両P銆佽剼鏈叆鍙ｅ拰鏁版嵁闅旂璇存槑
-- [docs/鍙屼唬鐞嗛儴缃茶鏄庝功.md](./docs/鍙屼唬鐞嗛儴缃茶鏄庝功.md): ECS2 涓?`llm-delegate + cliproxy-1/cliproxy-2` 鐨勫綋鍓嶉儴缃茬姸鎬併€佹渶鏂版簮鐮侀儴缃叉柟寮忋€佽繛鎺ユ柟寮忓拰缁存姢鍛戒护
-- [docs/cliproxy-auth-health-check.md](./docs/cliproxy-auth-health-check.md): 鏍￠獙鎵€鏈?CLIProxy 瀹炰緥鎺堟潈鏂囦欢鏄惁澶辨晥銆佹槸鍚︿粛鍙疆璇紝浠ュ強鍖哄垎棰濆害鑰楀敖/鍐峰嵈涓殑鑴氭湰璇存槑
+- [docs/alibaba-cloud-ecs-deploy.md](./docs/alibaba-cloud-ecs-deploy.md): 阿里云 ECS 部署步骤、推荐规范、安全组和验证命令
+- [docs/ecs-targets.md](./docs/ecs-targets.md): ECS 目标、IP、脚本入口和数据隔离说明
+- [docs/双代理部署说明书.md](./docs/双代理部署说明书.md): 当前部署状态、最新源码部署方式、连接方式和维护命令
+- [docs/cliproxy-auth-health-check.md](./docs/cliproxy-auth-health-check.md): 校验 CLIProxy 授权文件是否失效、是否仍可轮询，以及额度耗尽/冷却中的脚本说明
 
-## 閰嶇疆鏂囦欢
+## 配置文件
 
-- [`.env.deploy`](./.env.deploy): 鍗曟満澶氬疄渚嬮儴缃查厤缃?
-- [`docker-compose.deploy.yml`](./docker-compose.deploy.yml): 寮€鍙戞満澶氬疄渚?compose锛屽寘鍚暅鍍忔瀯寤?
-- [`docker-compose.deploy-image.yml`](./docker-compose.deploy-image.yml): 閮ㄧ讲鏈哄瀹炰緥 compose锛岀洿鎺ヤ娇鐢ㄥ凡鏈夐暅鍍?
-- [`deploy/nginx/default.conf.template`](./deploy/nginx/default.conf.template): Nginx 鍙嶅悜浠ｇ悊涓庤礋杞藉潎琛℃ā鏉?
-- [Dockerfile](./Dockerfile): 搴旂敤闀滃儚鏋勫缓鏂囦欢
+- [`.env.deploy`](./.env.deploy): 单机多实例部署配置
+- [`docker-compose.deploy.yml`](./docker-compose.deploy.yml): 开发机多实例 compose，包含镜像构建
+- [`docker-compose.deploy-image.yml`](./docker-compose.deploy-image.yml): 部署机多实例 compose，直接使用已有镜像
+- [`deploy/nginx/default.conf.template`](./deploy/nginx/default.conf.template): Nginx 反向代理与负载均衡模板
+- [Dockerfile](./Dockerfile): 应用镜像构建文件
 
 ## Dev Data
 
-寮€鍙戞暟鎹鍑猴細
+导出开发数据：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\export-dev-data.ps1
 ```
 
-寮€鍙戞暟鎹鍏ワ細
+导入开发数据：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\import-dev-data.ps1 -ComposeFile docker-compose.deploy.yml
 ```
 
-瀵煎嚭鏂囦欢锛?
+导出文件：
 
 - [`dev-data/llm_delegate.sql`](./dev-data/llm_delegate.sql)
 - [`dev-data/export-info.json`](./dev-data/export-info.json)
 
-璇存槑锛?
+说明：
 
-- 鍙湁 PostgreSQL 寮€鍙戞暟鎹細琚悓姝?
-- Redis session 涓嶅湪瀵煎嚭鑼冨洿鍐?
-- 瀵煎叆寮€鍙戞暟鎹悗锛岃处鍙峰瘑鐮佷互瀵煎嚭鏁版嵁涓哄噯
+- 只会同步 PostgreSQL 开发数据
+- Redis session 不在导出范围内
+- 导入开发数据后，账号密码以导出数据为准
 
-## 榛樿璐﹀彿
+## 默认账号
 
-绌哄簱棣栨鍒濆鍖栨椂锛岄粯璁ょ瀛愯处鍙锋潵鑷唬鐮侊細
+空库首次初始化时，默认种子账号来自代码：
 
-- 绠＄悊鍛橈細`luozhendong / L19991219zd#`
-- 鐢ㄦ埛锛歚user / 123456`
+- 管理员：`luozhendong / L19991219zd#`
+- 用户：`user / 123456`
 
-濡傛灉瀵煎叆浜?[`dev-data/llm_delegate.sql`](./dev-data/llm_delegate.sql)锛屽垯浠ュ鍏ユ暟鎹腑鐨勮处鍙蜂负鍑嗐€?
+如果导入了 [`dev-data/llm_delegate.sql`](./dev-data/llm_delegate.sql)，则以导入数据里的账号为准。
 
-## 鍏抽敭鏂囦欢
+## 关键文件
 
-- [src/app.js](./src/app.js): 搴旂敤鍏ュ彛
-- [src/server.js](./src/server.js): 鍚姩鍏ュ彛
-- [src/bootstrap/load-env.js](./src/bootstrap/load-env.js): 鐜鍙橀噺鍔犺浇
-- [src/bootstrap/create-runtime-infra.js](./src/bootstrap/create-runtime-infra.js): 杩愯鏃惰閰?
-- [src/bootstrap/ensure-initial-state.js](./src/bootstrap/ensure-initial-state.js): 鍒濆绉嶅瓙
-- [src/services/model-resolution-service.js](./src/services/model-resolution-service.js): 妯″瀷瑙ｆ瀽
-- [src/services/proxy-service.js](./src/services/proxy-service.js): 浠ｇ悊鏍稿績
-- [scripts/start-multi-instance.ps1](./scripts/start-multi-instance.ps1): 澶氬疄渚嬪惎鍔ㄨ剼鏈?
-- [scripts/start-multi-instance.sh](./scripts/start-multi-instance.sh): Linux 閮ㄧ讲鍚姩鑴氭湰
+- [src/app.js](./src/app.js): 应用入口
+- [src/server.js](./src/server.js): 启动入口
+- [src/bootstrap/load-env.js](./src/bootstrap/load-env.js): 环境变量加载
+- [src/bootstrap/create-runtime-infra.js](./src/bootstrap/create-runtime-infra.js): 运行时依赖装配
+- [src/bootstrap/ensure-initial-state.js](./src/bootstrap/ensure-initial-state.js): 初始种子数据
+- [src/services/model-resolution-service.js](./src/services/model-resolution-service.js): 模型解析
+- [src/services/proxy-service.js](./src/services/proxy-service.js): 代理核心
+- [scripts/start-multi-instance.ps1](./scripts/start-multi-instance.ps1): 多实例启动脚本
+- [scripts/start-multi-instance.sh](./scripts/start-multi-instance.sh): Linux 部署启动脚本
 
-## 鏃ュ織
+## 日志
 
-寤鸿鐩存帴鐪?Docker 瀹瑰櫒鏃ュ織锛?
+建议直接看 Docker 容器日志：
 
 ```powershell
 docker compose --env-file .env.deploy -f docker-compose.deploy-image.yml logs -f
 ```
 
-鎴栬€呭彧鐪嬪簲鐢ㄤ笌缃戝叧锛?
+或者只看应用和网关：
 
 ```powershell
 docker compose --env-file .env.deploy -f docker-compose.deploy-image.yml logs -f nginx app-1 app-2 app-3
 ```
-
