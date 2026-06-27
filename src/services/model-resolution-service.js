@@ -63,7 +63,7 @@ class ModelResolutionService {
                 ),
                 imagePerUnit: Number(externalModel.image_per_unit || 0),
                 requestFlatFee: Number(externalModel.request_flat_fee || 0),
-                priceMultiplier: Number(externalModel.price_multiplier || 1.5),
+                priceMultiplier: Number(externalModel.price_multiplier || 5),
             },
             updatedAt: externalModel.updated_at || externalModel.updatedAt || null,
         };

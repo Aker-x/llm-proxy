@@ -51,7 +51,7 @@ function calculateCost(usage, pricing) {
     const cacheCreationPricePerMillionTokens = getPricingValue(pricing, 'cacheCreationPerMillionTokens', 'cacheCreationPer1kTokens');
     // Thinking/reasoning tokens may be charged at a different (typically lower) rate
     const thinkingPricePerMillionTokens = getPricingValue(pricing, 'thinkingPerMillionTokens', null);
-    const priceMultiplier = toNonNegativeNumber(pricing?.priceMultiplier, 1.5);
+    const priceMultiplier = toNonNegativeNumber(pricing?.priceMultiplier, 5);
 
     const inputCost = (billableInputTokens / 1000000) * inputPricePerMillionTokens;
     const outputCost = (outputTokens / 1000000) * outputPricePerMillionTokens;

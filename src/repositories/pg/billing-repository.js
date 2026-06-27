@@ -416,19 +416,14 @@ class PgBillingRepository {
             const updatedUserResult = await client.query(`
                 UPDATE users
                 SET balance_usd = $2::numeric,
-                    total_recharged_usd = total_recharged_usd + $3::numeric,
-                    last_recharged_at = CASE
-                        WHEN $3::numeric > 0 THEN $4
-                        ELSE last_recharged_at
-                    END,
+                    total_spent_usd = total_spent_usd - $3::numeric,
                     updated_at = NOW()
                 WHERE username = $1
-                RETURNING balance_usd, total_recharged_usd
+                RETURNING balance_usd, total_recharged_usd, total_spent_usd
             `, [
                 username,
                 normalizedBalanceUsd,
-                adjustmentAmount > 0 ? normalizedAdjustmentUsd : normalizeNumericString(0),
-                reviewedAt,
+                normalizedAdjustmentUsd,
             ]);
             const updatedUser = updatedUserResult.rows[0];
 
@@ -453,6 +448,7 @@ class PgBillingRepository {
                 balanceUsd: Number(updatedUser?.balance_usd || 0),
                 adjustmentUsd: adjustmentAmount,
                 totalRechargedUsd: Number(updatedUser?.total_recharged_usd || 0),
+                totalSpentUsd: Number(updatedUser?.total_spent_usd || 0),
                 reviewedBy: String(operator || '').trim(),
                 reviewedAt,
             };

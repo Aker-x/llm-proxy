@@ -102,7 +102,7 @@ class PgExternalModelRepository {
             Number(externalModel.pricing?.thinkingPerMillionTokens || 0),
             Number(externalModel.pricing?.imagePerUnit || 0),
             Number(externalModel.pricing?.requestFlatFee || 0),
-            Number(externalModel.pricing?.priceMultiplier || 1.5),
+            Number(externalModel.pricing?.priceMultiplier || 5),
         ]);
 
         return result.rows[0] || null;

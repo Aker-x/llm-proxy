@@ -249,7 +249,7 @@ function formatBasePrice(pricing, canonicalKey, legacyKey) {
 }
 
 function formatMultiplierCell(pricing) {
-  const mult = Number(pricing?.priceMultiplier ?? 1.5);
+  const mult = Number(pricing?.priceMultiplier ?? 1);
   if (!Number.isFinite(mult) || mult <= 0) {
     return '-';
   }
@@ -585,7 +585,7 @@ function getCellValue(item, col) {
     case 'outputPrice': return getPerMillionPrice(item.displayPricing || item.pricing, 'outputPerMillionTokens', 'outputPer1kTokens');
     case 'cacheReadPrice': return getPerMillionPrice(item.displayPricing || item.pricing, 'cachedInputPerMillionTokens', 'cachedInputPer1kTokens');
     case 'cacheWritePrice': return getPerMillionPrice(item.displayPricing || item.pricing, 'cacheCreationPerMillionTokens', 'cacheCreationPer1kTokens');
-    case 'priceMultiplier': return Number((item.displayPricing || item.pricing)?.priceMultiplier ?? 1.5);
+    case 'priceMultiplier': return Number((item.displayPricing || item.pricing)?.priceMultiplier ?? 7.5);
     case 'latency': return Number(item.connectivityStatus?.latencyMs || 0);
     // external models
     case 'externalModelName': return String(item.externalModelName || item.name || '');

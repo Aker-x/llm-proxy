@@ -347,7 +347,7 @@ CREATE TABLE IF NOT EXISTS models (
     connectivity_message TEXT NOT NULL,
     connectivity_status_code INTEGER NOT NULL,
     connectivity_latency_ms INTEGER NOT NULL,
-    price_multiplier NUMERIC(10, 4) NOT NULL DEFAULT 1.5
+    price_multiplier NUMERIC(10, 4) NOT NULL DEFAULT 5
 );
 ALTER TABLE models
     ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT TRUE;
@@ -359,10 +359,10 @@ ALTER TABLE models
     ALTER COLUMN cache_creation_per_million_tokens SET DEFAULT 0,
     ALTER COLUMN image_per_unit SET DEFAULT 0,
     ALTER COLUMN request_flat_fee SET DEFAULT 0,
-    ALTER COLUMN price_multiplier SET DEFAULT 1.5;
+    ALTER COLUMN price_multiplier SET DEFAULT 5;
 UPDATE models
-SET price_multiplier = 1.5
-WHERE COALESCE(price_multiplier, 1) <> 1.5;
+SET price_multiplier = 5
+WHERE COALESCE(price_multiplier, 1) <> 5;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_models_provider_upstream_api
     ON models(provider_id, upstream_api, upstream_model);
 
@@ -377,7 +377,7 @@ CREATE TABLE IF NOT EXISTS external_models (
     thinking_per_million_tokens NUMERIC(18, 6) NOT NULL DEFAULT 0,
     image_per_unit NUMERIC(18, 6) NOT NULL DEFAULT 0,
     request_flat_fee NUMERIC(18, 6) NOT NULL DEFAULT 0,
-    price_multiplier NUMERIC(10, 4) NOT NULL DEFAULT 1.5,
+    price_multiplier NUMERIC(10, 4) NOT NULL DEFAULT 5,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -390,10 +390,10 @@ ALTER TABLE external_models
     ADD COLUMN IF NOT EXISTS thinking_per_million_tokens NUMERIC(18, 6) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS image_per_unit NUMERIC(18, 6) NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS request_flat_fee NUMERIC(18, 6) NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS price_multiplier NUMERIC(10, 4) NOT NULL DEFAULT 1.5;
+    ADD COLUMN IF NOT EXISTS price_multiplier NUMERIC(10, 4) NOT NULL DEFAULT 5;
 UPDATE external_models
-SET price_multiplier = 1.5
-WHERE COALESCE(price_multiplier, 1) <> 1.5;
+SET price_multiplier = 5
+WHERE COALESCE(price_multiplier, 1) <> 5;
 
 DO $$
 BEGIN
@@ -430,7 +430,7 @@ BEGIN
                 AVG(COALESCE(m.output_per_million_tokens, 0)) AS thinking_per_million_tokens,
                 AVG(COALESCE(m.image_per_unit, 0)) AS image_per_unit,
                 AVG(COALESCE(m.request_flat_fee, 0)) AS request_flat_fee,
-                MIN(COALESCE(m.price_multiplier, 1.5)) AS price_multiplier
+                MIN(COALESCE(m.price_multiplier, 5)) AS price_multiplier
             FROM external_model_targets t
             INNER JOIN models m
                 ON m.id = t.model_id
@@ -456,7 +456,7 @@ BEGIN
           AND COALESCE(em.thinking_per_million_tokens, 0) = 0
           AND COALESCE(em.image_per_unit, 0) = 0
           AND COALESCE(em.request_flat_fee, 0) = 0
-          AND COALESCE(em.price_multiplier, 1.5) = 1.5;
+          AND COALESCE(em.price_multiplier, 5) = 5;
     END IF;
 END $$;
 
@@ -939,7 +939,7 @@ BEGIN
     ) THEN
         EXECUTE '
             ALTER TABLE models
-            ADD COLUMN price_multiplier NUMERIC(10, 4) NOT NULL DEFAULT 1.5
+            ADD COLUMN price_multiplier NUMERIC(10, 4) NOT NULL DEFAULT 5
         ';
     END IF;
 END $$;

@@ -145,7 +145,7 @@ function formatPriceWithMultiplier(pricing, canonicalKey, legacyKey) {
 }
 
 function formatMultiplierCell(pricing) {
-  const mult = Number(pricing?.priceMultiplier ?? 1.5);
+  const mult = Number(pricing?.priceMultiplier ?? 1);
   if (!Number.isFinite(mult) || mult <= 0) {
     return '-';
   }
@@ -153,7 +153,7 @@ function formatMultiplierCell(pricing) {
 }
 
 function formatMultiplierCellDisplay(pricing) {
-  const mult = Number(pricing?.priceMultiplier ?? 1.5);
+  const mult = Number(pricing?.priceMultiplier ?? 1);
   if (!Number.isFinite(mult) || mult <= 0) {
     return '-';
   }
@@ -236,7 +236,7 @@ function getCellValue(item, col) {
     case 'outputPrice': return getPerMillionPrice(displayPricing, 'outputPerMillionTokens', 'outputPer1kTokens');
     case 'cacheReadPrice': return getPerMillionPrice(displayPricing, 'cachedInputPerMillionTokens', 'cachedInputPer1kTokens');
     case 'cacheWritePrice': return getPerMillionPrice(displayPricing, 'cacheCreationPerMillionTokens', 'cacheCreationPer1kTokens');
-    case 'priceMultiplier': return Number(displayPricing?.priceMultiplier ?? 1.5);
+    case 'priceMultiplier': return Number(displayPricing?.priceMultiplier ?? 1);
     default: return '';
   }
 }

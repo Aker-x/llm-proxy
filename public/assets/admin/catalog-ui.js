@@ -427,7 +427,7 @@ export function createCatalogUi({
       externalModelPricingCacheWrite.value = '0';
     }
     if (externalModelPriceMultiplier) {
-      externalModelPriceMultiplier.value = '1.5';
+      externalModelPriceMultiplier.value = '1';
     }
 
     const nextSelection = populateExternalModelModelIds({
@@ -490,7 +490,7 @@ export function createCatalogUi({
       externalModelPricingCacheWrite.value = getPerMillionPrice(item.pricing, 'cacheCreationPerMillionTokens', 'cacheCreationPer1kTokens');
     }
     if (externalModelPriceMultiplier) {
-      externalModelPriceMultiplier.value = item.displayPricing?.priceMultiplier ?? item.pricing?.priceMultiplier ?? 1.5;
+      externalModelPriceMultiplier.value = item.displayPricing?.priceMultiplier ?? item.pricing?.priceMultiplier ?? 1;
     }
 
     const nextSelection = populateExternalModelModelIds({

@@ -56,7 +56,7 @@ function mapExternalModelRow(row = {}) {
             ),
             imagePerUnit: Number(row.image_per_unit || 0),
             requestFlatFee: Number(row.request_flat_fee || 0),
-            priceMultiplier: Number(row.price_multiplier || 1.5),
+            priceMultiplier: Number(row.price_multiplier || 5),
         },
         updatedAt: row.updated_at,
     };
@@ -513,7 +513,7 @@ class CatalogAdminService {
                     ).toFixed(6),
                     Number(externalModel.pricing?.imagePerUnit || 0).toFixed(6),
                     Number(externalModel.pricing?.requestFlatFee || 0).toFixed(6),
-                    Number(externalModel.pricing?.priceMultiplier || 1).toFixed(4),
+                    Number(externalModel.pricing?.priceMultiplier || 5).toFixed(4),
                 ]);
             }
 

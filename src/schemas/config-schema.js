@@ -200,7 +200,7 @@ function getDefaultPricing(pricing = {}) {
         cacheCreationPer1kTokens: cacheCreationPerMillionTokens,
         imagePerUnit: toNonNegativeNumber(pricing.imagePerUnit),
         requestFlatFee: toNonNegativeNumber(pricing.requestFlatFee),
-        priceMultiplier: toNonNegativeNumber(pricing.priceMultiplier, 1.5),
+        priceMultiplier: toNonNegativeNumber(pricing.priceMultiplier, 5),
     };
 }
 

@@ -207,6 +207,8 @@ class BillingService {
                 previousBalanceUsd,
                 balanceUsd: normalizedBalanceUsd,
                 adjustmentUsd: 0,
+                totalRechargedUsd: roundUsd(user.total_recharged_usd),
+                totalSpentUsd: roundUsd(user.total_spent_usd),
             };
         }
 
@@ -225,6 +227,8 @@ class BillingService {
             previousBalanceUsd: roundUsd(result.previousBalanceUsd),
             balanceUsd: roundUsd(result.balanceUsd),
             adjustmentUsd: roundUsd(result.adjustmentUsd),
+            totalRechargedUsd: roundUsd(result.totalRechargedUsd),
+            totalSpentUsd: roundUsd(result.totalSpentUsd),
         };
     }
 

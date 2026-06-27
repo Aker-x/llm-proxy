@@ -230,7 +230,7 @@ export function createCatalogActions({
             outputPer1kTokens: numberValue(externalModelPricingOutput),
             cachedInputPer1kTokens: numberValue(externalModelPricingCacheRead),
             cacheCreationPer1kTokens: numberValue(externalModelPricingCacheWrite),
-            priceMultiplier: numberValue(externalModelPriceMultiplier, 1),
+            priceMultiplier: numberValue(externalModelPriceMultiplier, 7.5),
           },
           modelIds: selectedTargets.map((target) => target.modelId),
           targets: selectedTargets,
