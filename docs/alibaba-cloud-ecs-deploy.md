@@ -23,8 +23,8 @@ The repository currently distinguishes two ECS targets:
 
 | Target | Public IP | Instance ID | Hostname | Data scope |
 |--------|-----------|-------------|----------|------------|
-| `ecs2` | `43.106.12.39` | `i-t4ndf2e41u6bvin6n0nv` | `iZt4ndf2e41u6bvin6n0nvZ` | Main runtime data and current CLIProxy instances |
-| `ecs2` | `43.106.12.39` | `i-t4n5wcn1ykvqrwj26j30` | `iZt4n5wcn1ykvqrwj26j30Z` | Separate runtime data |
+| `ecs2` | `43.155.216.44` | `i-t4ndf2e41u6bvin6n0nv` | `iZt4ndf2e41u6bvin6n0nvZ` | Main runtime data and current CLIProxy instances |
+| `ecs2` | `43.155.216.44` | `i-t4n5wcn1ykvqrwj26j30` | `iZt4n5wcn1ykvqrwj26j30Z` | Separate runtime data |
 
 Both targets run the same application code. PostgreSQL, Redis, CLIProxy auth/config, logs, and runtime data are intentionally not shared.
 
@@ -51,14 +51,13 @@ Use this baseline for each ECS:
 
 | Target | Public entry | Deployment directory | Notes |
 |--------|--------------|----------------------|-------|
-| `ecs2` | `http://43.106.12.39/` | `/root/llm-delegate` | Main runtime data. `cliproxy-1` and `cliproxy-2` are present on this ECS. |
-| `ecs2` | `http://43.106.12.39/` | `/root/llm-delegate` | Separate runtime data. `cliproxy-1` and `cliproxy-2` are present on this ECS. |
+| `ecs2` | `http://43.155.216.44/` | `/home/ubuntu/llm-delegate` | Current deployment target. |
 
 Both entries have been verified with HTTP `200 OK`. Both ECS targets currently expose `80`, `8317`, and `8318` for the known runtime layout.
 
 ## Files To Upload To ECS
 
-Upload these files to the server, for example into `/root/llm-delegate`:
+Upload these files to the server, for example into `/home/ubuntu/llm-delegate`:
 
 - [`.env.deploy`](../.env.deploy)
 - [`docker-compose.deploy-image.yml`](../docker-compose.deploy-image.yml)
@@ -85,21 +84,21 @@ If you want a single local command that builds, uploads, restarts, and verifies 
 
 The default target in [`scripts/deploy-to-ecs.ps1`](../scripts/deploy-to-ecs.ps1) is ECS2:
 
-- Host: `43.106.12.39`
-- User: `root`
+- Host: `43.155.216.44`
+- User: `ubuntu`
 - SSH key resolution order:
 - `deploy/ssh/id_rsa` in the local project directory
 - `~/.ssh/id_rsa_sg` on the current machine
 - `~/.ssh/id_rsa` on the current machine
 - or pass `-KeyFile` explicitly
-- Deploy dir: `/root/llm-delegate`
+- Deploy dir: `/home/ubuntu/llm-delegate`
 
 Common examples:
 
 ```powershell
 .\deploy-ecs.bat -SkipBuild
 .\deploy-ecs2.bat -SkipBuild
-.\deploy-ecs.bat -ServerHost 43.106.12.39 -User root
+.\deploy-ecs.bat -ServerHost 43.155.216.44 -User ubuntu
 .\deploy-ecs.bat -KeyFile C:\path\to\id_rsa
 ```
 
@@ -219,10 +218,10 @@ Notes:
 
 ## Deploy On ECS
 
-Assuming the deployment files are in `/root/llm-delegate`:
+Assuming the deployment files are in `/home/ubuntu/llm-delegate`:
 
 ```bash
-cd /root/llm-delegate
+cd /home/ubuntu/llm-delegate
 chmod +x scripts/start-multi-instance.sh
 MODE=deploy ./scripts/start-multi-instance.sh
 ```
@@ -272,9 +271,8 @@ http://<your-ecs-public-ip>/
 For the current ECS public entries:
 
 ```text
-ECS2: http://43.106.12.39/
-ECS2: http://43.106.12.39/
+ECS2: http://43.155.216.44/
+ECS2: http://43.155.216.44/
 ```
 
 If you intentionally want to expose a non-standard port such as `3000`, update `.env.deploy` and the ECS security group together.
-

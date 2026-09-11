@@ -2,7 +2,7 @@
     [ValidateSet("ecs2")]
     [string]$Target = "ecs2",
     [string]$ServerHost = "",
-    [string]$User = "root",
+    [string]$User = "ubuntu",
     [string]$KeyFile = "",
     [string]$DeployDir = "",
     [string]$EnvFile = ".env.deploy",
@@ -24,11 +24,11 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 function Get-DefaultServerHost {
     param([string]$SelectedTarget)
 
-    return "43.106.12.39"
+    return "43.155.216.44"
 }
 
 function Get-DefaultDeployDir {
-    return "/root/llm-delegate"
+    return "/home/ubuntu/llm-delegate"
 }
 
 function Get-SshKeyCandidates {

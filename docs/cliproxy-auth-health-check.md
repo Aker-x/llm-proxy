@@ -65,7 +65,7 @@ Testing from the local development machine may be misleading when the network pa
 
 We already observed cases where:
 
-- local direct access to `http://43.106.12.39:8318` returned an empty `403`
+- local direct access to `http://43.155.216.44:8318` returned an empty `403`
 - the CLIProxy application logs did not show the request
 - the same request succeeded when executed from the ECS host itself
 
@@ -229,8 +229,8 @@ Use this workflow whenever a new auth is added or an old auth is suspected to be
 This helper is written for the current ECS deployment pattern:
 
 - Default target: `ecs2`
-- ECS2 host: `43.106.12.39`
-- ECS2 host: `43.106.12.39`
+- ECS2 host: `43.155.216.44`
+- ECS2 host: `43.155.216.44`
 - Containers:
   - `cliproxy-1`
   - `cliproxy-2`

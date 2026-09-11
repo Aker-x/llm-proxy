@@ -8,8 +8,8 @@
 
 | 鐩爣 | 鍏綉 IP | 瀹炰緥 ID | 涓绘満鍚?| 璇存槑 |
 |------|---------|---------|--------|------|
-| `ecs2` | `43.106.12.39` | `i-t4ndf2e41u6bvin6n0nv` | `iZt4ndf2e41u6bvin6n0nvZ` | 褰撳墠涓昏杩愯鐜锛屽寘鍚凡鏈変笟鍔℃暟鎹拰 CLIProxy 瀹炰緥 |
-| `ecs2` | `43.106.12.39` | `i-t4n5wcn1ykvqrwj26j30` | `iZt4n5wcn1ykvqrwj26j30Z` | 绗簩濂楀悓浠ｇ爜鐜锛屾暟鎹嫭绔嬶紝宸查儴缃?CLIProxy 瀹炰緥 |
+| `ecs2` | `43.155.216.44` | `i-t4ndf2e41u6bvin6n0nv` | `iZt4ndf2e41u6bvin6n0nvZ` | 褰撳墠涓昏杩愯鐜锛屽寘鍚凡鏈変笟鍔℃暟鎹拰 CLIProxy 瀹炰緥 |
+| `ecs2` | `43.155.216.44` | `i-t4n5wcn1ykvqrwj26j30` | `iZt4n5wcn1ykvqrwj26j30Z` | 绗簩濂楀悓浠ｇ爜鐜锛屾暟鎹嫭绔嬶紝宸查儴缃?CLIProxy 瀹炰緥 |
 
 ## 鎺ㄨ崘鍏ュ彛
 
@@ -35,8 +35,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\deploy-to-ecs.ps1 -Target ecs
 .\exec-ecs2.bat -RemoteCommand "hostname"
 .\exec-ecs2.bat -RemoteCommand "hostname"
 
-curl.exe -fsS -I --max-time 15 http://43.106.12.39/
-curl.exe -fsS -I --max-time 15 http://43.106.12.39/
+curl.exe -fsS -I --max-time 15 http://43.155.216.44/
+curl.exe -fsS -I --max-time 15 http://43.155.216.44/
 ```
 
 ## 鎿嶄綔鍘熷垯
