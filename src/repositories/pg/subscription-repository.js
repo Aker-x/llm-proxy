@@ -194,6 +194,8 @@ class PgSubscriptionRepository {
                 spml.plan_id,
                 spml.external_model_name,
                 spml.daily_request_limit,
+                COALESCE(spq.period_request_limit, 0) AS period_request_limit,
+                COALESCE(spq.allow_balance_fallback, TRUE) AS period_allow_balance_fallback,
                 spml.updated_at,
                 sp.name AS plan_name,
                 sp.enabled AS plan_enabled,
@@ -204,6 +206,8 @@ class PgSubscriptionRepository {
                 ON sp.id = spml.plan_id
             INNER JOIN external_models em
                 ON em.name = spml.external_model_name
+            LEFT JOIN subscription_plan_model_quotas spq
+                ON spq.plan_id = spml.plan_id AND spq.external_model_name = spml.external_model_name
             ORDER BY sp.sort_order ASC, sp.created_at ASC, sp.id ASC, em.name ASC
         `);
 
@@ -212,6 +216,10 @@ class PgSubscriptionRepository {
 
     async replacePlanModelLimits(planId, limits = []) {
         await withPgTransaction(this.pool, async (client) => {
+            await client.query(`
+                DELETE FROM subscription_plan_model_quotas
+                WHERE plan_id = $1
+            `, [planId]);
             await client.query(`
                 DELETE FROM subscription_plan_model_limits
                 WHERE plan_id = $1
@@ -236,6 +244,20 @@ class PgSubscriptionRepository {
                         updated_at
                     ) VALUES ($1, $2, $3, NOW())
                 `, [planId, rawName, Math.floor(parsedLimit)]);
+                await client.query(`
+                    INSERT INTO subscription_plan_model_quotas (
+                        plan_id, external_model_name, period_request_limit, allow_balance_fallback, updated_at
+                    ) VALUES ($1, $2, $3, $4, NOW())
+                    ON CONFLICT (plan_id, external_model_name) DO UPDATE SET
+                        period_request_limit = EXCLUDED.period_request_limit,
+                        allow_balance_fallback = EXCLUDED.allow_balance_fallback,
+                        updated_at = NOW()
+                `, [
+                    planId,
+                    rawName,
+                    Number.isFinite(Number(limit.periodRequestLimit)) ? Math.floor(Math.max(0, Number(limit.periodRequestLimit))) : Math.floor(parsedLimit),
+                    limit.allowBalanceFallback !== false,
+                ]);
             }
         });
 
@@ -244,8 +266,10 @@ class PgSubscriptionRepository {
 
     async getPlanLimitByExternalModelName(planId, externalModelName) {
         const result = await this.pool.query(`
-            SELECT spml.*
+            SELECT spml.*, spq.period_request_limit, spq.allow_balance_fallback AS period_allow_balance_fallback
             FROM subscription_plan_model_limits spml
+            LEFT JOIN subscription_plan_model_quotas spq
+              ON spq.plan_id = spml.plan_id AND spq.external_model_name = spml.external_model_name
             WHERE spml.plan_id = $1
               AND spml.external_model_name = $2
         `, [planId, externalModelName]);
@@ -854,6 +878,109 @@ class PgSubscriptionRepository {
         `, [username, planId, externalModelName, timezone]);
 
         return Number(result.rows[0]?.request_count || 0);
+    }
+
+    async createSubscriptionPeriod({ id, username, planId, startsAt, expiresAt }) {
+        return withPgTransaction(this.pool, async (client) => {
+            const periodResult = await client.query(`
+                INSERT INTO subscription_periods (id, username, plan_id, starts_at, expires_at, status)
+                VALUES ($1, $2, $3, $4, $5, 'active')
+                ON CONFLICT (id) DO NOTHING
+                RETURNING *
+            `, [id, username, planId, startsAt, expiresAt]);
+            const period = periodResult.rows[0] || (await client.query(
+                'SELECT * FROM subscription_periods WHERE id = $1', [id]
+            )).rows[0];
+            await client.query(`
+                INSERT INTO subscription_period_model_quotas (
+                    period_id, external_model_name, period_request_limit, allow_balance_fallback
+                )
+                SELECT $1, external_model_name, period_request_limit, allow_balance_fallback
+                FROM subscription_plan_model_quotas
+                WHERE plan_id = $2
+                ON CONFLICT (period_id, external_model_name) DO NOTHING
+            `, [id, planId]);
+            await client.query(`
+                INSERT INTO subscription_period_usage (period_id, username, external_model_name)
+                SELECT $1, $2, external_model_name
+                FROM subscription_period_model_quotas
+                WHERE period_id = $1
+                ON CONFLICT (period_id, external_model_name) DO NOTHING
+            `, [id, username]);
+            return period || null;
+        });
+    }
+
+    async getActiveSubscriptionPeriod(username) {
+        const result = await this.pool.query(`
+            SELECT p.*, q.period_request_limit, q.allow_balance_fallback,
+                   u.used_count, u.inflight_count
+            FROM subscription_periods p
+            LEFT JOIN subscription_period_model_quotas q ON q.period_id = p.id
+            LEFT JOIN subscription_period_usage u
+              ON u.period_id = p.id AND u.external_model_name = q.external_model_name
+            WHERE p.username = $1 AND p.status = 'active'
+              AND p.starts_at <= NOW() AND p.expires_at > NOW()
+            ORDER BY p.starts_at DESC
+        `, [username]);
+        return result.rows;
+    }
+
+    async reservePeriodUsage({ requestId, username, periodId, externalModelName, limit }) {
+        const normalizedLimit = Number(limit || 0);
+        return withPgTransaction(this.pool, async (client) => {
+            const result = await client.query(`
+                UPDATE subscription_period_usage
+                SET inflight_count = inflight_count + 1, updated_at = NOW()
+                WHERE period_id = $1 AND username = $2 AND external_model_name = $3
+                  AND ($4::integer = 0 OR used_count + inflight_count < $4::integer)
+                RETURNING used_count, inflight_count
+            `, [periodId, username, externalModelName, normalizedLimit]);
+            if (!result.rows[0]) {
+                return { reserved: false, requestId, periodId, externalModelName, remaining: 0 };
+            }
+            await client.query(`
+                INSERT INTO subscription_period_reservations
+                    (request_id, period_id, username, external_model_name, status)
+                VALUES ($1, $2, $3, $4, 'reserved')
+                ON CONFLICT (request_id) DO NOTHING
+            `, [requestId, periodId, username, externalModelName]);
+            const row = result.rows[0];
+            return {
+                reserved: true,
+                requestId,
+                periodId,
+                externalModelName,
+                usedCount: Number(row.used_count || 0),
+                inflightCount: Number(row.inflight_count || 0),
+                remaining: normalizedLimit === 0 ? null : Math.max(0, normalizedLimit - Number(row.used_count || 0) - Number(row.inflight_count || 0)),
+            };
+        });
+    }
+
+    async completePeriodUsageReservation({ requestId, consume = false }) {
+        return withPgTransaction(this.pool, async (client) => {
+            const reservationResult = await client.query(
+                'SELECT * FROM subscription_period_reservations WHERE request_id = $1 FOR UPDATE', [requestId]
+            );
+            const reservation = reservationResult.rows[0];
+            if (!reservation || reservation.status !== 'reserved') {
+                return reservation || null;
+            }
+            await client.query(`
+                UPDATE subscription_period_usage
+                SET inflight_count = GREATEST(0, inflight_count - 1),
+                    used_count = used_count + $2::integer,
+                    updated_at = NOW()
+                WHERE period_id = $1 AND external_model_name = $3
+            `, [reservation.period_id, consume ? 1 : 0, reservation.external_model_name]);
+            const result = await client.query(`
+                UPDATE subscription_period_reservations
+                SET status = $2, completed_at = NOW()
+                WHERE request_id = $1 RETURNING *
+            `, [requestId, consume ? 'consumed' : 'released']);
+            return result.rows[0] || null;
+        });
     }
 
     async getDailyUsageCountsByUsername({ usernames = [], timezone = 'Asia/Shanghai' }) {

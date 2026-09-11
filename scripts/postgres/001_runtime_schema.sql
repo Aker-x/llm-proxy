@@ -508,6 +508,59 @@ CREATE INDEX IF NOT EXISTS idx_subscription_quota_reservations_lookup
 CREATE INDEX IF NOT EXISTS idx_subscription_quota_reservations_stale
     ON subscription_quota_reservations(status, created_at);
 
+-- Subscription period quotas: one independent 30-day entitlement per approved subscription period.
+CREATE TABLE IF NOT EXISTS subscription_periods (
+    id UUID PRIMARY KEY,
+    username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    plan_id TEXT NOT NULL REFERENCES subscription_plans(id),
+    starts_at TIMESTAMPTZ NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_subscription_periods_user_status
+    ON subscription_periods(username, status, starts_at DESC);
+
+CREATE TABLE IF NOT EXISTS subscription_plan_model_quotas (
+    plan_id TEXT NOT NULL REFERENCES subscription_plans(id) ON DELETE CASCADE,
+    external_model_name TEXT NOT NULL REFERENCES external_models(name) ON DELETE CASCADE,
+    period_request_limit INTEGER NOT NULL DEFAULT 0,
+    allow_balance_fallback BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (plan_id, external_model_name)
+);
+
+CREATE TABLE IF NOT EXISTS subscription_period_model_quotas (
+    period_id UUID NOT NULL REFERENCES subscription_periods(id) ON DELETE CASCADE,
+    external_model_name TEXT NOT NULL,
+    period_request_limit INTEGER NOT NULL DEFAULT 0,
+    allow_balance_fallback BOOLEAN NOT NULL DEFAULT TRUE,
+    PRIMARY KEY (period_id, external_model_name)
+);
+
+CREATE TABLE IF NOT EXISTS subscription_period_usage (
+    period_id UUID NOT NULL REFERENCES subscription_periods(id) ON DELETE CASCADE,
+    username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    external_model_name TEXT NOT NULL,
+    used_count INTEGER NOT NULL DEFAULT 0,
+    inflight_count INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (period_id, external_model_name)
+);
+
+CREATE TABLE IF NOT EXISTS subscription_period_reservations (
+    request_id UUID PRIMARY KEY,
+    period_id UUID NOT NULL REFERENCES subscription_periods(id) ON DELETE CASCADE,
+    username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+    external_model_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_subscription_period_reservations_stale
+    ON subscription_period_reservations(status, created_at);
+
 DO $$
 BEGIN
     IF NOT EXISTS (

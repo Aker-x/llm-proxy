@@ -7,8 +7,8 @@ function formatLimitUsage(item = {}) {
     return '额度消耗已暂停';
   }
 
-  const used = Number(item.requestsToday || 0);
-  const limit = Number(item.dailyRequestLimit || 0);
+  const used = Number(item.requestsInPeriod ?? item.requestsToday ?? 0);
+  const limit = Number(item.periodRequestLimit ?? item.dailyRequestLimit ?? 0);
   if (item.unlimited || limit === 0) {
     return `已用 ${used} / 不限`;
   }
@@ -17,7 +17,7 @@ function formatLimitUsage(item = {}) {
 }
 
 function formatPlanLimit(item = {}) {
-  const limit = Number(item.dailyRequestLimit || 0);
+  const limit = Number(item.periodRequestLimit ?? item.dailyRequestLimit ?? 0);
   if (limit === 0) {
     return `${getExternalModelLabel(item)}：不限`;
   }
@@ -92,10 +92,11 @@ export function createSubscriptionModule({
 
         return {
           externalModelName: input.dataset.externalModelName || '',
+          periodRequestLimit: Number(rawValue),
           dailyRequestLimit: Number(rawValue),
         };
       })
-      .filter((item) => item && Number.isFinite(item.dailyRequestLimit) && item.dailyRequestLimit >= 0);
+      .filter((item) => item && Number.isFinite(item.periodRequestLimit) && item.periodRequestLimit >= 0);
 
     return {
       name: subscriptionPlanName?.value.trim() || '',
@@ -150,7 +151,7 @@ export function createSubscriptionModule({
                 type="number"
                 min="0"
                 step="1"
-                value="${escapeHtml(existingLimit ? String(existingLimit.dailyRequestLimit) : '')}"
+                value="${escapeHtml(existingLimit ? String(existingLimit.periodRequestLimit ?? existingLimit.dailyRequestLimit ?? '') : '')}"
                 placeholder="留空=不纳入，0=不限"
                 data-plan-limit-input="true"
                 data-external-model-name="${escapeHtml(model.name || '')}"

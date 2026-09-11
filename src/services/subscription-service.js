@@ -59,6 +59,14 @@ function mapSettings(row = {}) {
     };
 }
 
+function addDays(isoValue, days = 30) {
+    const baseDate = new Date(isoValue || Date.now());
+    if (!Number.isFinite(baseDate.getTime())) {
+        return new Date().toISOString();
+    }
+    return new Date(baseDate.getTime() + Number(days || 0) * 24 * 60 * 60 * 1000).toISOString();
+}
+
 function mapOrder(row = {}) {
     return {
         id: row.id,
@@ -122,6 +130,8 @@ function mapPlanLimit(row = {}) {
         externalModelName: row.external_model_name || '',
         strategy: row.strategy || '',
         dailyRequestLimit,
+        periodRequestLimit: toNonNegativeInteger(row.period_request_limit),
+        periodAllowBalanceFallback: row.period_allow_balance_fallback !== false,
         updatedAt: row.updated_at || null,
     };
 }
@@ -210,6 +220,8 @@ function groupPlanLimits(planRows = [], limitRows = []) {
             externalModelName: limit.externalModelName,
             strategy: limit.strategy,
             dailyRequestLimit: limit.dailyRequestLimit,
+            periodRequestLimit: limit.periodRequestLimit,
+            allowBalanceFallback: limit.periodAllowBalanceFallback,
             updatedAt: limit.updatedAt,
         });
     }
@@ -287,7 +299,7 @@ class SubscriptionService {
                     .map(mapPlanLimit)
                     .filter((item) => item.planId === subscription.planId);
 
-                const [usageRows, preferenceRows] = await Promise.all([
+                const [usageRows, preferenceRows, periodRows] = await Promise.all([
                     this.subscriptionRepository.getDailyUsageCountsByUsername({
                         usernames: [username],
                         timezone: this.timezone,
@@ -296,19 +308,41 @@ class SubscriptionService {
                         username,
                         planId: subscription.planId,
                     }),
+                    typeof this.subscriptionRepository.getActiveSubscriptionPeriod === 'function'
+                        ? this.subscriptionRepository.getActiveSubscriptionPeriod(username)
+                        : Promise.resolve([]),
                 ]);
                 const userUsageMap = buildUsageMap(usageRows).get(username) || new Map();
                 const planUsageMap = userUsageMap.get(subscription.planId) || new Map();
                 const preferenceMap = buildPreferenceMap(preferenceRows);
+                const periodUsageMap = new Map((periodRows || []).map((row) => [row.external_model_name, row]));
 
                 currentPlan = {
                     ...mapPlan(currentPlanRow),
-                    modelLimits: currentPlanLimits.map((limit) => decorateLimitUsage({
-                        ...limit,
-                        allowBalanceFallback: preferenceMap.get(limit.externalModelName)?.allowBalanceFallback !== false,
-                    }, planUsageMap.get(limit.externalModelName) || 0, {
-                        quotaConsumptionEnabled: settings.quotaConsumptionEnabled,
-                    })),
+                    modelLimits: currentPlanLimits.map((limit) => {
+                        const period = periodUsageMap.get(limit.externalModelName);
+                        const decorated = decorateLimitUsage({
+                            ...limit,
+                            allowBalanceFallback: preferenceMap.get(limit.externalModelName)?.allowBalanceFallback !== false,
+                        }, planUsageMap.get(limit.externalModelName) || 0, {
+                            quotaConsumptionEnabled: settings.quotaConsumptionEnabled,
+                        });
+                        if (!period) return decorated;
+                        const periodLimit = Number(period.period_request_limit || 0);
+                        const usedCount = Number(period.used_count || 0);
+                        const inflightCount = Number(period.inflight_count || 0);
+                        return {
+                            ...decorated,
+                            periodRequestLimit: periodLimit,
+                            requestsInPeriod: usedCount,
+                            inflightInPeriod: inflightCount,
+                            remainingInPeriod: periodLimit === 0 ? null : Math.max(0, periodLimit - usedCount - inflightCount),
+                            periodStartsAt: period.starts_at,
+                            periodExpiresAt: period.expires_at,
+                            unlimited: periodLimit === 0,
+                            allowBalanceFallback: preferenceMap.get(limit.externalModelName)?.allowBalanceFallback !== false,
+                        };
+                    }),
                 };
             }
         }
@@ -543,7 +577,7 @@ class SubscriptionService {
         const userStartedAt = samePlan
             ? (subscription.subscription_started_at || nowIso)
             : nowIso;
-        const expiresAt = addMonths(orderStartedAt, Number(order.months || 1));
+        const expiresAt = addDays(orderStartedAt, 30 * Number(order.months || 1));
 
         const result = await this.subscriptionRepository.approveOrder({
             orderId,
@@ -561,6 +595,16 @@ class SubscriptionService {
 
         if (result.rejected) {
             throw createHttpError(400, 'Subscription order is already rejected.');
+        }
+
+        if (typeof this.subscriptionRepository.createSubscriptionPeriod === 'function') {
+            await this.subscriptionRepository.createSubscriptionPeriod({
+                id: crypto.randomUUID(),
+                username: order.username,
+                planId: plan.id,
+                startsAt: orderStartedAt,
+                expiresAt,
+            });
         }
 
         return {
@@ -692,7 +736,31 @@ class SubscriptionService {
         });
         const allowBalanceFallback = preferenceRow
             ? preferenceRow.allow_balance_fallback !== false
-            : true;
+            : limitRow.period_allow_balance_fallback !== false;
+        const periodRequestLimit = toNonNegativeInteger(limitRow.period_request_limit);
+        const periodRows = typeof this.subscriptionRepository.getActiveSubscriptionPeriod === 'function'
+            ? await this.subscriptionRepository.getActiveSubscriptionPeriod(username)
+            : [];
+        const periodRow = periodRows.find((row) => row.external_model_name === normalizedExternalModelName);
+        if (periodRow) {
+            const periodLimit = toNonNegativeInteger(periodRow.period_request_limit);
+            const settings = await this.getSettings();
+            const quotaConsumptionEnabled = settings.quotaConsumptionEnabled !== false;
+            if (!quotaConsumptionEnabled || periodLimit === 0) {
+                return {
+                    mode: 'subscription',
+                    subscription,
+                    appliedLimit: { planId: subscription.planId, planName: subscription.planName, externalModelName: normalizedExternalModelName, periodRequestLimit: periodLimit, requestsInPeriod: Number(periodRow.used_count || 0), remainingInPeriod: null, unlimited: periodLimit === 0, quotaConsumptionEnabled, quotaConsumptionPaused: !quotaConsumptionEnabled, subscriptionExhausted: false, allowBalanceFallback },
+                };
+            }
+            if (reserveQuota && requestId && typeof this.subscriptionRepository.reservePeriodUsage === 'function') {
+                const reservation = await this.subscriptionRepository.reservePeriodUsage({ requestId, username, periodId: periodRow.id, externalModelName: normalizedExternalModelName, limit: periodLimit });
+                if (reservation?.reserved) {
+                    return { mode: 'subscription', subscription, quotaReservation: reservation, appliedLimit: { planId: subscription.planId, planName: subscription.planName, externalModelName: normalizedExternalModelName, periodRequestLimit: periodLimit, requestsInPeriod: reservation.usedCount, inflightInPeriod: reservation.inflightCount, remainingInPeriod: reservation.remaining, unlimited: false, quotaConsumptionEnabled: true, quotaConsumptionPaused: false, subscriptionExhausted: false, allowBalanceFallback } };
+                }
+                return { mode: allowBalanceFallback ? 'balance' : 'blocked', subscription, appliedLimit: { planId: subscription.planId, planName: subscription.planName, externalModelName: normalizedExternalModelName, periodRequestLimit: periodLimit, requestsInPeriod: Number(periodRow.used_count || 0), inflightInPeriod: Number(periodRow.inflight_count || 0), remainingInPeriod: 0, unlimited: false, quotaConsumptionEnabled: true, quotaConsumptionPaused: false, subscriptionExhausted: true, allowBalanceFallback } };
+            }
+        }
         const dailyRequestLimit = toNonNegativeInteger(limitRow.daily_request_limit);
         const settings = await this.getSettings();
         const quotaConsumptionEnabled = settings.quotaConsumptionEnabled !== false;
@@ -828,15 +896,15 @@ class SubscriptionService {
     async completeUsageReservation({ quotaReservation, success }) {
         if (
             !quotaReservation?.requestId
-            || typeof this.subscriptionRepository.completeDailyUsageReservation !== 'function'
+            || (typeof this.subscriptionRepository.completePeriodUsageReservation !== 'function' && typeof this.subscriptionRepository.completeDailyUsageReservation !== 'function')
         ) {
             return null;
         }
 
-        return this.subscriptionRepository.completeDailyUsageReservation({
-            requestId: quotaReservation.requestId,
-            consume: success === true,
-        });
+        if (quotaReservation.periodId && typeof this.subscriptionRepository.completePeriodUsageReservation === 'function') {
+            return this.subscriptionRepository.completePeriodUsageReservation({ requestId: quotaReservation.requestId, consume: success === true });
+        }
+        return this.subscriptionRepository.completeDailyUsageReservation({ requestId: quotaReservation.requestId, consume: success === true });
     }
 }
 

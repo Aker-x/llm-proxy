@@ -40,6 +40,13 @@ export function createUserRenderingModule({
   } = helpers;
 
   function formatSubscriptionBalance(item = {}) {
+    const periodLimit = Number(item.periodRequestLimit ?? 0);
+    if (item.periodRequestLimit != null) {
+      if (item.unlimited || periodLimit === 0) {
+        return `订阅周期已用 ${Number(item.requestsInPeriod || 0)} / 不限`;
+      }
+      return `订阅周期剩余 ${Number(item.remainingInPeriod ?? Math.max(0, periodLimit - Number(item.requestsInPeriod || 0)))} / ${periodLimit} · ${item.allowBalanceFallback === false ? '用完后暂停' : '用完后走余额'}`;
+    }
     if (item.quotaConsumptionEnabled === false || item.quotaConsumptionPaused) {
       return `当前优惠期，不消耗今日额度（已用 ${Number(item.requestsToday || 0)}）`;
     }
