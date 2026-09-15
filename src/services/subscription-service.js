@@ -742,7 +742,9 @@ class SubscriptionService {
             ? await this.subscriptionRepository.getActiveSubscriptionPeriod(username)
             : [];
         const periodRow = periodRows.find((row) => row.external_model_name === normalizedExternalModelName);
-        if (periodRow) {
+        // Daily quota is the active billing policy. Period tables remain available
+        // for historical compatibility, but must not override the displayed daily limit.
+        if (periodRow && limitRow.period_quota_mode === 'period') {
             const periodLimit = toNonNegativeInteger(periodRow.period_request_limit);
             const settings = await this.getSettings();
             const quotaConsumptionEnabled = settings.quotaConsumptionEnabled !== false;

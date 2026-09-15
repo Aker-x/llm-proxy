@@ -41,7 +41,7 @@ export function createUserRenderingModule({
 
   function formatSubscriptionBalance(item = {}) {
     const periodLimit = Number(item.periodRequestLimit ?? 0);
-    if (item.periodRequestLimit != null) {
+    if (item.periodQuotaMode === 'period' && item.periodRequestLimit != null) {
       if (item.unlimited || periodLimit === 0) {
         return `订阅周期已用 ${Number(item.requestsInPeriod || 0)} / 不限`;
       }
