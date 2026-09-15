@@ -35,6 +35,8 @@ function Get-SshKeyCandidates {
     return @(
         (Join-Path $projectRoot "deploy/ssh/id_rsa"),
         (Join-Path $HOME ".ssh/id_rsa_sg"),
+        (Join-Path $HOME ".ssh/id_ed25519_akerx"),
+        (Join-Path $HOME ".ssh/id_ed25519"),
         (Join-Path $HOME ".ssh/id_rsa")
     )
 }
