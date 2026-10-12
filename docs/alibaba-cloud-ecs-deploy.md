@@ -76,6 +76,17 @@ docker compose --env-file .env.deploy -f docker-compose.deploy.yml build migrate
 docker save -o llm-delegate.tar llm-delegate:latest
 ```
 
+The build uses `https://registry.npmmirror.com` by default. Set `NPM_REGISTRY` in
+`.env.deploy` to override it (for example, `https://registry.npmjs.org` when reachable).
+Dependency versions and integrity checks still come from `package-lock.json`.
+The image build verifies that production dependencies and the application entrypoint
+load successfully. The deployment script repeats this check before uploading; with
+`-SkipBuild`, it first loads and checks the selected tar file.
+
+On ECS, the startup script runs migration before recreating application containers.
+A migration failure prints its logs and stops the update. These checks prevent an npm
+installer that incorrectly exits with code 0 from shipping an incomplete image.
+
 If you want a single local command that builds, uploads, restarts, and verifies the ECS deployment, use:
 
 ```powershell

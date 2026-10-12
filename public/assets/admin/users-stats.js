@@ -276,8 +276,8 @@ export function createUsersStatsModule({
         <td>${escapeHtml(item.username || '-')}</td>
         <td>${escapeHtml(item.providerName || item.providerId)}</td>
         <td>${escapeHtml(item.modelName || item.modelId)}</td>
-        <td>${getStatusBadge(item.success ? '\u6210\u529f' : '\u5931\u8d25', item.success ? 'success' : 'danger')}</td>
-        <td>${formatMoney(item.totalCost, item.currency || 'USD')}</td>
+        <td title="${escapeHtml([item.requestId, item.responseDiagnostics?.errorCode, item.responseDiagnostics?.errorMessage].filter(Boolean).join(' | '))}">${getStatusBadge(item.success ? '\u6210\u529f' : '\u5931\u8d25', item.success ? 'success' : 'danger')}${item.responseDiagnostics?.usageStatus === 'missing' ? '<small class="table-note"> 用量缺失</small>' : ''}${['incomplete', 'truncated'].includes(item.responseDiagnostics?.responseStatus) ? '<small class="table-note"> 未完成</small>' : ''}</td>
+        <td>${item.success && item.responseDiagnostics?.usageStatus === 'missing' ? '—' : formatMoney(item.totalCost, item.currency || 'USD')}</td>
         <td>${formatNumber(item.latencyMs)} ms</td>
       </tr>
     `)

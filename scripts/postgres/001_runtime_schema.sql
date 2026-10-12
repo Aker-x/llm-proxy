@@ -854,6 +854,7 @@ CREATE TABLE IF NOT EXISTS recent_requests (
     total_cost NUMERIC(18, 6) NOT NULL,
     currency TEXT NOT NULL,
     latency_ms INTEGER NOT NULL,
+    response_diagnostics JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_recent_requests_username
@@ -862,6 +863,9 @@ CREATE INDEX IF NOT EXISTS idx_recent_requests_created_at
     ON recent_requests(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_recent_requests_username_model_name_created_at
     ON recent_requests(username, model_name, created_at DESC);
+
+-- Additive migration: NULL means diagnostics were not recorded by older versions.
+ALTER TABLE recent_requests ADD COLUMN IF NOT EXISTS response_diagnostics JSONB;
 
 DO $$
 BEGIN

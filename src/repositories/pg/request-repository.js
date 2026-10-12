@@ -24,10 +24,11 @@ class PgRequestRepository {
                 total_cost,
                 currency,
                 latency_ms,
+                response_diagnostics,
                 created_at
             ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8,
-                $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW()
+                $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, NOW()
             )
             ON CONFLICT (request_id) DO NOTHING
             RETURNING *
@@ -50,6 +51,7 @@ class PgRequestRepository {
             Number(request.totalCost || 0),
             String(request.currency || 'USD'),
             Number(request.latencyMs || 0),
+            request.responseDiagnostics ? JSON.stringify(request.responseDiagnostics) : null,
         ]);
 
         return result.rows[0] || null;

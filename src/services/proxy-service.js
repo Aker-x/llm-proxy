@@ -2,6 +2,8 @@ const crypto = require('crypto');
 const { getProxyApi } = require('./proxy-apis');
 const { buildSyntheticStream } = require('./proxy-apis/synthetic-streams');
 const { normalizeResponsesStreamCompletion } = require('./proxy-apis/responses-stream-normalizer');
+const { inspectResponseOutcome } = require('./proxy-apis/response-outcome');
+const { readResponseStream } = require('./proxy-apis/read-response-stream');
 const { getApiLabel, PROXY_API_IDS } = require('./proxy-apis/constants');
 const { ensureJsonObjectBody, stripInternalRoutingFields, summarizeText } = require('./proxy-apis/shared');
 const { convertRequestBody, convertResponseBody, getBaseApiId } = require('./proxy-apis/converters');
@@ -254,14 +256,6 @@ function buildConnectivityPreview({ upstreamApiId, parsedResponse, responseText 
     }
 
     return summarizeText(responseText);
-}
-
-function isEmptySuccessfulResponse({ parsedResponse, responseText }) {
-    if (parsedResponse && typeof parsedResponse === 'object') {
-        return false;
-    }
-
-    return !String(responseText || '').trim();
 }
 
 function applyClientVisibleModelName(payload, clientApiId, clientModelName) {
@@ -584,6 +578,7 @@ class ProxyService {
                 totalCost: costInfo.totalCost,
                 currency: costInfo.currency,
                 latencyMs,
+                responseDiagnostics: costInfo.responseDiagnostics || null,
             },
             statsEvent: {
                 requestId,
@@ -664,17 +659,20 @@ class ProxyService {
         });
 
         let result = null;
-        if (accountingMode === 'subscription') {
-            result = await this.requestAccountingService.recordUsageOnly(payload);
-        } else {
-            result = await this.requestAccountingService.settle(payload);
+        try {
+            if (accountingMode === 'subscription') {
+                result = await this.requestAccountingService.recordUsageOnly(payload);
+            } else {
+                result = await this.requestAccountingService.settle(payload);
+            }
+        } finally {
+            // A failed stats write must not leave a failed upstream request's quota reserved.
+            await this.completeQuotaReservationIfNeeded({
+                requestId,
+                quotaReservation,
+                success,
+            });
         }
-
-        await this.completeQuotaReservationIfNeeded({
-            requestId,
-            quotaReservation,
-            success,
-        });
 
         return result;
     }
@@ -930,31 +928,25 @@ class ProxyService {
         return model?.upstreamApi || clientApiId || PROXY_API_IDS.CHAT_COMPLETIONS;
     }
 
-    recordFailedStats({ username, provider, model, latencyMs }) {
-        if (this.requestAccountingService) {
-            return {
-                totalCost: 0,
-                inputTokens: 0,
-                outputTokens: 0,
-                thinkingTokens: 0,
-                cacheReadTokens: 0,
-                cacheCreationTokens: 0,
-                currency: 'USD',
-                latencyMs,
-                username,
-                providerId: provider?.id,
-                modelId: model?.id,
-            };
-        }
-
-        this.statsService.recordRequestStats({
-            username,
-            provider,
-            model,
-            success: false,
-            usage: null,
+    recordFailedStats({ username, provider, model, latencyMs, usage = null, responseDiagnostics = null }) {
+        const costInfo = {
+            ...calculateCost(usage, model?.pricing),
+            // Preserve upstream usage for diagnostics, but never charge failed requests.
+            totalCost: 0,
             latencyMs,
-        });
+            responseDiagnostics,
+        };
+        if (!this.requestAccountingService) {
+            this.statsService.recordRequestStats({
+                username,
+                provider,
+                model,
+                success: false,
+                usage,
+                latencyMs,
+            });
+        }
+        return costInfo;
     }
 
     async resolveDirectModelContext(modelId, options = {}) {
@@ -976,6 +968,9 @@ class ProxyService {
         sourceModel,
         externalModel = null,
         latencyMs,
+        headerLatencyMs = null,
+        streamReadError = null,
+        streamAlreadyForwarded = false,
         requestId,
         subscriptionPlanId = null,
         accountingMode = 'balance',
@@ -994,6 +989,11 @@ class ProxyService {
                 provider,
                 model,
                 latencyMs,
+                responseDiagnostics: {
+                    responseStatus: 'failed', usageStatus: 'missing', hasOutput: false,
+                    errorCode: 'upstream_html_response', upstreamStatus: proxyResponse.status,
+                    headerLatencyMs, totalLatencyMs: latencyMs,
+                },
             });
             await this.settleIfNeeded({
                 requestId,
@@ -1036,17 +1036,36 @@ class ProxyService {
         const { parsedResponse, usage, usageSource } = upstreamApi.extractResponseMetadata(responseText);
         const needsResponseConversion = getBaseApiId(clientApiId) !== getBaseApiId(upstreamApiId);
         const requestedStream = Boolean(requestBody?.stream);
-        const emptySuccessfulResponse = proxyResponse.ok && isEmptySuccessfulResponse({
+        const outcome = inspectResponseOutcome({
+            apiId: upstreamApiId,
             parsedResponse,
             responseText,
+            usage,
+            streamReadError,
         });
+        const responseDiagnostics = {
+            ...outcome.diagnostics,
+            upstreamStatus: proxyResponse.status,
+            headerLatencyMs,
+            totalLatencyMs: latencyMs,
+            usageSource,
+            sourceModelId: sourceModel?.id || model.sourceModelId || model.id,
+            upstreamModel: model.upstreamModel,
+        };
+        if (!proxyResponse.ok) responseDiagnostics.responseStatus = 'failed';
+        console.info(
+            `[${requestId}] Upstream response outcome provider=${provider.id} modelId=${model.id} `
+            + `diagnostics=${JSON.stringify(responseDiagnostics)}`
+        );
 
-        if (emptySuccessfulResponse) {
+        if (proxyResponse.ok && !outcome.success) {
             const costInfo = this.recordFailedStats({
                 username,
                 provider,
                 model,
                 latencyMs,
+                usage,
+                responseDiagnostics,
             });
             await this.settleIfNeeded({
                 requestId,
@@ -1064,7 +1083,7 @@ class ProxyService {
             });
 
             console.warn(
-                `[${requestId}] Upstream returned an empty successful response `
+                `[${requestId}] Upstream returned an unsuccessful HTTP 2xx response `
                 + `provider=${provider.id} modelId=${model.id} clientApi=${clientApiId} upstreamApi=${upstreamApiId} `
                 + `contentType="${responseContentType}"`
             );
@@ -1073,7 +1092,10 @@ class ProxyService {
                 status: 502,
                 type: 'json',
                 payload: {
-                    error: 'Upstream returned an empty response instead of a model completion.',
+                    error: {
+                        code: responseDiagnostics.errorCode,
+                        message: responseDiagnostics.errorMessage,
+                    },
                     requestId,
                 },
                 proxyHeaders: this.buildProxyHeaders({
@@ -1088,6 +1110,7 @@ class ProxyService {
 
         if (proxyResponse.ok) {
             const { costInfo } = this.buildUsageSnapshot(usage, model.pricing);
+            costInfo.responseDiagnostics = responseDiagnostics;
 
             if (!this.requestAccountingService) {
                 this.statsService.recordRequestStats({
@@ -1120,10 +1143,10 @@ class ProxyService {
                 });
             }
 
-            if (!usage) {
+            if (responseDiagnostics.usageStatus === 'missing') {
                 console.warn(
                     `[${requestId}] No usage returned for ${provider.id}/${model.id}; `
-                    + 'recorded zero-token stats for this successful request.'
+                    + 'completion succeeded, but upstream usage is unknown (not reported as zero).'
                 );
             } else if (usageSource === 'sse') {
                 console.info(`[${requestId}] Captured streamed usage for ${provider.id}/${model.id}.`);
@@ -1199,7 +1222,7 @@ class ProxyService {
             externalModel,
             sourceModel,
         });
-        if (retryableFailure) {
+        if (retryableFailure && !streamAlreadyForwarded && !streamReadError) {
             return {
                 status: proxyResponse.status,
                 type: 'retry_external_model',
@@ -1213,6 +1236,8 @@ class ProxyService {
             provider,
             model,
             latencyMs,
+            usage,
+            responseDiagnostics,
         });
         await this.settleIfNeeded({
             requestId,
@@ -1364,10 +1389,11 @@ class ProxyService {
 
                     try {
                         const proxyResponse = await fetch(preparedRequest.targetUrl, preparedRequest.requestInit);
-                        const latencyMs = Date.now() - requestStartedAt;
+                        const headerLatencyMs = Date.now() - requestStartedAt;
                         const contentType = proxyResponse.headers.get('content-type') || 'application/json; charset=utf-8';
                         const contentLength = String(proxyResponse.headers.get('content-length') || '').trim();
-                        const shouldPassthroughStream = contentType.includes('text/event-stream')
+                        const shouldPassthroughStream = proxyResponse.ok
+                            && contentType.includes('text/event-stream')
                             && contentLength !== '0'
                             && proxyResponse.body
                             && typeof proxyResponse.body.tee === 'function'
@@ -1376,7 +1402,7 @@ class ProxyService {
                         console.info(
                             `[${requestId}] Upstream response `
                             + `status=${proxyResponse.status} ok=${proxyResponse.ok} provider=${provider.id} `
-                            + `modelId=${model.id} clientApi=${apiId} upstreamApi=${upstreamApiId} latencyMs=${latencyMs}`
+                            + `modelId=${model.id} clientApi=${apiId} upstreamApi=${upstreamApiId} headerLatencyMs=${headerLatencyMs}`
                         );
 
                         if (shouldPassthroughStream) {
@@ -1385,17 +1411,16 @@ class ProxyService {
                                 && getBaseApiId(upstreamApiId) === PROXY_API_IDS.RESPONSES;
                             const responseStream = shouldNormalizeResponsesStream
                                 ? normalizeResponsesStreamCompletion(clientStream, {
-                                    onInjected: () => {
-                                        console.info(
-                                            `[${requestId}] Injected missing Responses stream completion event `
+                                    onAbnormalEnd: () => {
+                                        console.warn(
+                                            `[${requestId}] Responses stream truncated; sent an error instead of fabricating completion `
                                             + `provider=${provider.id} modelId=${model.id} clientApi=${apiId} upstreamApi=${upstreamApiId}`
                                         );
                                     },
                                 })
                                 : clientStream;
-                            const completion = new Response(analysisStream)
-                                .text()
-                                .then((responseText) => this.processResponseText({
+                            const completion = readResponseStream(analysisStream)
+                                .then(({ responseText, streamReadError }) => this.processResponseText({
                                         clientApiId: apiId,
                                         clientModelName: String(body?.model || model.externalModelName || model.name || '').trim(),
                                         upstreamApiId,
@@ -1408,7 +1433,10 @@ class ProxyService {
                                         model,
                                         sourceModel,
                                         externalModel,
-                                        latencyMs,
+                                        latencyMs: Date.now() - requestStartedAt,
+                                        headerLatencyMs,
+                                        streamReadError,
+                                        streamAlreadyForwarded: true,
                                         requestId,
                                         subscriptionPlanId: resolvedAccessContext?.subscription?.planId || null,
                                         accountingMode: resolvedAccessContext?.mode || 'balance',
@@ -1416,32 +1444,13 @@ class ProxyService {
                                         quotaReservation,
                                     }))
                                 .catch((error) => {
-                                    const failedCostInfo = this.recordFailedStats({
-                                        username,
-                                        provider,
-                                        model,
-                                        latencyMs,
-                                    });
-                                    return this.settleIfNeeded({
-                                        requestId,
-                                        username,
-                                        success: false,
-                                        costInfo: failedCostInfo,
-                                        provider,
-                                        model,
-                                        latencyMs,
-                                        clientModelName: String(body?.model || model.externalModelName || model.name || '').trim(),
-                                        subscriptionPlanId: resolvedAccessContext?.subscription?.planId || null,
-                                        accountingMode: resolvedAccessContext?.mode || 'balance',
-                                        subscriptionQuotaCharged,
-                                        quotaReservation,
-                                    }).finally(() => {
-                                        console.error(
-                                            `[${requestId}] Problem while processing streamed response `
-                                            + `provider=${provider.id} modelId=${model.id} clientApi=${apiId} upstreamApi=${upstreamApiId}: `
-                                            + `${error.stack || error.message}`
-                                        );
-                                    });
+                                    // Processing/accounting errors are not upstream transport failures.
+                                    // Do not settle a second time or retry an already-forwarded stream.
+                                    console.error(
+                                        `[${requestId}] Problem while processing streamed response `
+                                        + `provider=${provider.id} modelId=${model.id} clientApi=${apiId} upstreamApi=${upstreamApiId}: `
+                                        + `${error.stack || error.message}`
+                                    );
                                 });
 
                             return {
@@ -1460,7 +1469,7 @@ class ProxyService {
                             };
                         }
 
-                        const responseText = await proxyResponse.text();
+                        const { responseText, streamReadError } = await readResponseStream(proxyResponse.body);
                         return this.processResponseText({
                             clientApiId: apiId,
                             clientModelName: String(body?.model || model.externalModelName || model.name || '').trim(),
@@ -1474,7 +1483,9 @@ class ProxyService {
                             model,
                             sourceModel,
                             externalModel,
-                            latencyMs,
+                            latencyMs: Date.now() - requestStartedAt,
+                            headerLatencyMs,
+                            streamReadError,
                             requestId,
                             subscriptionPlanId: resolvedAccessContext?.subscription?.planId || null,
                             accountingMode: resolvedAccessContext?.mode || 'balance',
@@ -1613,8 +1624,8 @@ class ProxyService {
 
         try {
             const proxyResponse = await fetch(preparedRequest.targetUrl, preparedRequest.requestInit);
-            const latencyMs = Date.now() - requestStartedAt;
             const responseText = await proxyResponse.text();
+            const latencyMs = Date.now() - requestStartedAt;
             const contentType = proxyResponse.headers.get('content-type') || 'application/json; charset=utf-8';
             const trimmedResponseText = String(responseText || '').trim();
             const looksLikeHtml = contentType.includes('text/html')
@@ -1623,10 +1634,13 @@ class ProxyService {
             const { parsedResponse, usage } = looksLikeHtml
                 ? { parsedResponse: null, usage: null }
                 : upstreamApi.extractResponseMetadata(responseText);
-            const emptySuccessfulResponse = proxyResponse.ok && !looksLikeHtml && isEmptySuccessfulResponse({
+            const outcome = inspectResponseOutcome({
+                apiId: upstreamApiId,
                 parsedResponse,
                 responseText,
+                usage,
             });
+            const emptySuccessfulResponse = proxyResponse.ok && !looksLikeHtml && !outcome.success;
             const preview = buildConnectivityPreview({
                 upstreamApiId,
                 parsedResponse,
@@ -1645,7 +1659,7 @@ class ProxyService {
                 message: looksLikeHtml
                     ? 'Upstream returned HTML instead of an API response.'
                     : (emptySuccessfulResponse
-                        ? 'Upstream returned an empty response instead of a model completion.'
+                        ? outcome.diagnostics.errorMessage
                         : preview),
                 statusCode: proxyResponse.status,
                 latencyMs,
@@ -1666,7 +1680,7 @@ class ProxyService {
                 message: looksLikeHtml
                     ? 'Upstream returned HTML instead of an API response.'
                     : (emptySuccessfulResponse
-                        ? 'Upstream returned an empty response instead of a model completion.'
+                        ? outcome.diagnostics.errorMessage
                         : (proxyResponse.ok ? 'Connectivity test succeeded.' : preview)),
             };
         } catch (error) {

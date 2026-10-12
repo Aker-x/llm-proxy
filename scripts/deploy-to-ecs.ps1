@@ -226,12 +226,25 @@ try {
             & docker compose --env-file $envFilePath -f $buildComposePath build --no-cache migrate
         } -ErrorMessage "docker compose build failed."
 
+    } else {
+        Write-Step "Skipping local image build"
+        Assert-PathExists -Path $imageTarPath -Label "Image tar"
+        Write-Step "Loading image tar for validation"
+        Invoke-Checked -Script {
+            & docker load -i $imageTarPath
+        } -ErrorMessage "docker load failed."
+    }
+
+    Write-Step "Checking image runtime dependencies and application entrypoint"
+    Invoke-Checked -Script {
+        & docker run --rm --read-only --network none llm-delegate:latest node scripts/verify-runtime.js
+    } -ErrorMessage "Image runtime validation failed; deployment stopped before upload."
+
+    if (-not $SkipBuild) {
         Write-Step "Exporting image tar"
         Invoke-Checked -Script {
             & docker save -o $imageTarPath llm-delegate:latest
         } -ErrorMessage "docker save failed."
-    } else {
-        Write-Step "Skipping local image build"
     }
 
     Assert-PathExists -Path $imageTarPath -Label "Image tar"

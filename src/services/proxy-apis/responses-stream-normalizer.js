@@ -49,22 +49,14 @@ function readSseBlock(rawBlock) {
     };
 }
 
-function buildResponseCompletedEvent(response, sequenceNumber) {
-    const responseId = String(response?.id || '').trim() || `resp_${Date.now()}`;
-    const completedResponse = {
-        object: 'response',
-        output: [],
-        ...response,
-        id: responseId,
-        status: 'completed',
-    };
-
+function buildTruncatedStreamEvent(sequenceNumber) {
     return [
-        'event: response.completed',
+        'event: error',
         `data: ${JSON.stringify({
-            type: 'response.completed',
+            type: 'error',
             sequence_number: sequenceNumber,
-            response: completedResponse,
+            code: 'upstream_stream_truncated',
+            message: 'Upstream stream ended without a terminal response event.',
         })}`,
         '',
         '',
@@ -86,24 +78,23 @@ function normalizeResponsesStreamCompletion(stream, options = {}) {
 
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
-    const onInjected = typeof options.onInjected === 'function' ? options.onInjected : null;
+    const onAbnormalEnd = typeof options.onAbnormalEnd === 'function' ? options.onAbnormalEnd : null;
     let buffer = '';
-    let sawCompleted = false;
+    let sawTerminal = false;
     let sawDone = false;
     let injected = false;
     let latestSequenceNumber = 0;
-    let latestResponse = null;
 
-    const injectCompletion = () => {
-        if (sawCompleted || injected) {
+    const signalTruncation = () => {
+        if (sawTerminal || injected) {
             return '';
         }
 
         injected = true;
-        if (onInjected) {
-            onInjected();
+        if (onAbnormalEnd) {
+            onAbnormalEnd();
         }
-        return buildResponseCompletedEvent(latestResponse, latestSequenceNumber + 1);
+        return buildTruncatedStreamEvent(latestSequenceNumber + 1);
     };
 
     const observeBlock = (rawBlock) => {
@@ -112,24 +103,18 @@ function normalizeResponsesStreamCompletion(stream, options = {}) {
 
         if (parsed.dataText === '[DONE]') {
             sawDone = true;
-            return `${injectCompletion()}${rawBlock}`;
+            return `${signalTruncation()}${rawBlock}`;
         }
 
+        const type = payload?.type || parsed.eventName;
+        if (['response.completed', 'response.failed', 'response.incomplete', 'error'].includes(type)
+            || payload?.error) {
+            sawTerminal = true;
+        }
         if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
             const sequenceNumber = Number(payload.sequence_number);
             if (Number.isFinite(sequenceNumber) && sequenceNumber > latestSequenceNumber) {
                 latestSequenceNumber = sequenceNumber;
-            }
-
-            if (payload.response && typeof payload.response === 'object' && !Array.isArray(payload.response)) {
-                latestResponse = {
-                    ...(latestResponse || {}),
-                    ...payload.response,
-                };
-            }
-
-            if (parsed.eventName === 'response.completed' || payload.type === 'response.completed') {
-                sawCompleted = true;
             }
         }
 
@@ -165,7 +150,7 @@ function normalizeResponsesStreamCompletion(stream, options = {}) {
             }
 
             if (!sawDone) {
-                controller.enqueue(encoder.encode(`${injectCompletion()}data: [DONE]\n\n`));
+                controller.enqueue(encoder.encode(`${signalTruncation()}data: [DONE]\n\n`));
             }
         },
     }));

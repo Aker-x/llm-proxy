@@ -99,6 +99,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NPM_REGISTRY: "${NPM_REGISTRY:-https://registry.npmmirror.com}"
     restart: "no"
     logging: *default-logging
     depends_on:

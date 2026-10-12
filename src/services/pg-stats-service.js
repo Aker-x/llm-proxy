@@ -24,6 +24,8 @@ function mapScopedRow(row = {}, extraFields = {}) {
 
 function mapRecentRequest(row = {}) {
     return {
+        requestId: row.request_id || null,
+        responseDiagnostics: row.response_diagnostics || null,
         timestamp: row.created_at,
         username: row.username,
         providerId: row.provider_id,

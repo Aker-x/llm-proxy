@@ -106,6 +106,18 @@ function buildChatResponseFromEvents(events) {
             if (typeof delta.content === 'string') {
                 existing.message.content += delta.content;
             }
+            if (typeof delta.refusal === 'string') {
+                existing.message.refusal = `${existing.message.refusal || ''}${delta.refusal}`;
+            }
+            if (delta.function_call) {
+                const current = existing.message.function_call || { name: '', arguments: '' };
+                current.name += delta.function_call.name || '';
+                current.arguments += delta.function_call.arguments || '';
+                existing.message.function_call = current;
+            }
+            if (delta.audio) {
+                existing.message.audio = { ...(existing.message.audio || {}), ...delta.audio };
+            }
 
             if (Array.isArray(delta.tool_calls)) {
                 for (const toolCall of delta.tool_calls) {
@@ -156,6 +168,9 @@ function buildChatResponseFromEvents(events) {
                 role: choice.message.role || 'assistant',
                 content: choice.message.content || null,
                 ...(choice.message.tool_calls.length > 0 ? { tool_calls: choice.message.tool_calls } : {}),
+                ...(choice.message.refusal ? { refusal: choice.message.refusal } : {}),
+                ...(choice.message.function_call ? { function_call: choice.message.function_call } : {}),
+                ...(choice.message.audio ? { audio: choice.message.audio } : {}),
             },
             finish_reason: choice.finish_reason || (choice.message.tool_calls.length > 0 ? 'tool_calls' : 'stop'),
         }));
@@ -305,10 +320,6 @@ function mergeResponseEnvelope(base, next) {
         : {};
 
     for (const [key, value] of Object.entries(next)) {
-        if (key === 'output') {
-            continue;
-        }
-
         if (key === 'usage') {
             merged.usage = mergeUsage(merged.usage, value);
             continue;
@@ -366,6 +377,7 @@ function ensureResponseReasoningPart(item, summaryIndex, fallbackType = 'summary
 
 function buildResponsesResponseFromEvents(events) {
     let response = null;
+    let terminalOutput = null;
     const outputItems = new Map();
 
     for (const event of events) {
@@ -374,13 +386,32 @@ function buildResponsesResponseFromEvents(events) {
             continue;
         }
 
-        const type = String(payload.type || '').trim();
+        const type = String(payload.type || event.event || '').trim();
         if (
             type === 'response.created'
             || type === 'response.in_progress'
             || type === 'response.completed'
+            || type === 'response.failed'
+            || type === 'response.incomplete'
         ) {
             response = mergeResponseEnvelope(response, payload.response);
+            if (['response.completed', 'response.failed', 'response.incomplete'].includes(type)) {
+                response = response || {};
+                response.status = type.slice('response.'.length);
+                if (Array.isArray(payload.response?.output)) {
+                    terminalOutput = cloneObject(payload.response.output);
+                }
+            }
+            continue;
+        }
+
+        if (type === 'error' || payload.error) {
+            response = response || {};
+            response.status = 'failed';
+            response.error = cloneObject(payload.error) || {
+                code: payload.code || 'upstream_stream_error',
+                message: payload.message || 'Upstream stream returned an error.',
+            };
             continue;
         }
 
@@ -420,6 +451,16 @@ function buildResponsesResponseFromEvents(events) {
             continue;
         }
 
+        if (type === 'response.refusal.delta' || type === 'response.refusal.done') {
+            const item = ensureResponsesOutputItem(outputItems, payload.output_index, 'message');
+            const part = ensureResponseMessagePart(item, payload.content_index, 'refusal');
+            part.type = 'refusal';
+            part.refusal = type.endsWith('.delta')
+                ? `${part.refusal || ''}${payload.delta || ''}`
+                : payload.refusal || part.refusal || '';
+            continue;
+        }
+
         if (type === 'response.reasoning_summary_part.added' || type === 'response.reasoning_summary_part.done') {
             const item = ensureResponsesOutputItem(outputItems, payload.output_index, 'reasoning');
             item.type = 'reasoning';
@@ -456,11 +497,11 @@ function buildResponsesResponseFromEvents(events) {
         }
     }
 
-    const output = outputItems.size > 0
+    const output = terminalOutput || (outputItems.size > 0
         ? Array.from(outputItems.entries())
             .sort((left, right) => left[0] - right[0])
             .map(([, item]) => cloneObject(item))
-        : (Array.isArray(response?.output) ? cloneObject(response.output) : []);
+        : (Array.isArray(response?.output) ? cloneObject(response.output) : []));
 
     if (!response && output.length === 0) {
         return null;
@@ -471,7 +512,7 @@ function buildResponsesResponseFromEvents(events) {
         id: response?.id || `resp_${Date.now()}`,
         object: response?.object || 'response',
         model: response?.model || '',
-        status: response?.status || 'completed',
+        status: response?.status || 'in_progress',
         output,
         ...(response?.usage ? { usage: response.usage } : {}),
     };
@@ -481,6 +522,13 @@ function cloneObject(value) {
     return value && typeof value === 'object' && !Array.isArray(value)
         ? JSON.parse(JSON.stringify(value))
         : value;
+}
+
+function extractEventUsage(events) {
+    return events.reduce((usage, event) => mergeUsage(
+        usage,
+        event.data?.usage || event.data?.response?.usage || event.data?.message?.usage
+    ), null);
 }
 
 function extractChatCompletionMetadata(responseText) {
@@ -495,10 +543,11 @@ function extractChatCompletionMetadata(responseText) {
 
     const events = parseSseEvents(responseText);
     const response = buildChatResponseFromEvents(events);
+    const usage = extractEventUsage(events);
     return {
         parsedResponse: response,
-        usage: response?.usage || null,
-        usageSource: response?.usage ? 'sse' : null,
+        usage,
+        usageSource: usage ? 'sse' : null,
     };
 }
 
@@ -514,11 +563,12 @@ function extractResponsesMetadata(responseText) {
 
     const events = parseSseEvents(responseText);
     const response = buildResponsesResponseFromEvents(events);
+    const usage = extractEventUsage(events);
 
     return {
         parsedResponse: response,
-        usage: response?.usage || null,
-        usageSource: response?.usage ? 'sse' : null,
+        usage,
+        usageSource: usage ? 'sse' : null,
     };
 }
 
@@ -534,11 +584,12 @@ function extractMessagesMetadata(responseText) {
 
     const events = parseSseEvents(responseText);
     const response = buildMessagesResponseFromEvents(events);
+    const usage = extractEventUsage(events);
 
     return {
         parsedResponse: response,
-        usage: response?.usage || null,
-        usageSource: response?.usage ? 'sse' : null,
+        usage,
+        usageSource: usage ? 'sse' : null,
     };
 }
 

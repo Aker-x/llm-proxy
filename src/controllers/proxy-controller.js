@@ -1,4 +1,5 @@
 const { Readable } = require('stream');
+const { pipeline } = require('stream/promises');
 const contentType = require('content-type');
 const { sanitizeHeadersForLog } = require('../utils/sanitize');
 
@@ -55,8 +56,12 @@ function sendProxyResult(res, result) {
     if (result.type === 'stream') {
         res.status(result.status);
         res.setHeader('Content-Type', resolveSafeContentType(result.contentType, 'text/event-stream; charset=utf-8'));
-        Readable.fromWeb(result.stream).pipe(res);
-        return result.completion;
+        const delivery = pipeline(Readable.fromWeb(result.stream), res).catch((error) => {
+            console.warn(
+                `[${res.getHeader('X-Proxy-Request-Id') || 'n/a'}] Stream delivery failed: ${error.message}`
+            );
+        });
+        return Promise.all([delivery, result.completion]);
     }
 
     res.status(result.status);

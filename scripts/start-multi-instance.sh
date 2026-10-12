@@ -23,7 +23,7 @@ fi
 ENV_FILE_PATH="${PROJECT_ROOT}/${ENV_FILE}"
 COMPOSE_FILE_PATH="${PROJECT_ROOT}/${COMPOSE_FILE}"
 IMAGE_TAR_PATH="${PROJECT_ROOT}/${IMAGE_TAR}"
-STACK_SERVICES=(migrate app-1 app-2 app-3 nginx)
+STACK_SERVICES=(app-1 app-2 app-3 nginx)
 
 write_step() {
   echo
@@ -160,11 +160,17 @@ main() {
   wait_for_service_state postgres "healthy,running" 120
   wait_for_service_state redis "healthy,running" 120
 
-  write_step "Starting multi-instance stack"
-  invoke_compose up -d --force-recreate --no-build "${STACK_SERVICES[@]}"
-
+  write_step "Running database migration"
+  if ! invoke_compose up -d --force-recreate --no-build --no-deps migrate; then
+    invoke_compose logs --tail 80 migrate || true
+    echo "Failed to start migration; application containers have not been recreated." >&2
+    exit 1
+  fi
   wait_for_service_state migrate "exited" 120
   assert_service_exited_successfully migrate
+
+  write_step "Starting multi-instance stack"
+  invoke_compose up -d --force-recreate --no-build --no-deps "${STACK_SERVICES[@]}"
   wait_for_service_state app-1 "running" 120
   wait_for_service_state app-2 "running" 120
   wait_for_service_state app-3 "running" 120

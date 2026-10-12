@@ -464,12 +464,12 @@ export function createUserRenderingModule({
       <tr>
         <td>${escapeHtml(formatDateTime(item.timestamp))}</td>
         <td>${escapeHtml(item.modelName || item.modelId)}</td>
-        <td>${getStatusBadge(item.success ? '成功' : '失败', item.success ? 'success' : 'danger')}</td>
-        <td>${formatNumber(item.inputTokens)}</td>
-        <td>${formatNumber(item.outputTokens)}</td>
-        <td>${formatNumber(item.cacheReadTokens)}</td>
-        <td>${formatNumber(item.cacheCreationTokens)}</td>
-        <td>${formatMoney(item.totalCost, item.currency || 'USD')}</td>
+        <td title="${escapeHtml(item.requestId || '')}">${getStatusBadge(item.success ? '成功' : '失败', item.success ? 'success' : 'danger')}</td>
+        <td>${item.responseDiagnostics?.usageStatus === 'missing' ? '—' : formatNumber(item.inputTokens)}</td>
+        <td>${item.responseDiagnostics?.usageStatus === 'missing' ? '—' : formatNumber(item.outputTokens)}</td>
+        <td>${item.responseDiagnostics?.usageStatus === 'missing' ? '—' : formatNumber(item.cacheReadTokens)}</td>
+        <td>${item.responseDiagnostics?.usageStatus === 'missing' ? '—' : formatNumber(item.cacheCreationTokens)}</td>
+        <td>${item.success && item.responseDiagnostics?.usageStatus === 'missing' ? '—' : formatMoney(item.totalCost, item.currency || 'USD')}</td>
         <td>${formatNumber(item.latencyMs)} ms</td>
       </tr>
     `)
